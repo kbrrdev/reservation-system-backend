@@ -191,6 +191,7 @@ class ReservedConfirmAndExpiryTest {
 		assertThat(seat(s1).getStatus()).isEqualTo(EventSeatStatus.SOLD);
 	}
 
+	/** Payment and expiry race; either order ends CONFIRMED (a later payment re-claims the still-free seats). */
 	@Test
 	void payRaceWithExpiry() throws Exception {
 		List<List<UUID>> seatsOf = new ArrayList<>();
@@ -212,7 +213,7 @@ class ReservedConfirmAndExpiryTest {
 				CountDownLatch start = new CountDownLatch(1);
 				Future<?> paid = pool.submit(() -> {
 					assertThat(start.await(10, SECONDS)).isTrue();
-					payments.handle(payment); // a payment that loses the race is flagged for refund, not thrown
+					payments.handle(payment);
 					return null;
 				});
 				Future<Boolean> expired = pool.submit(() -> {
@@ -220,34 +221,21 @@ class ReservedConfirmAndExpiryTest {
 					return bookings.expire(id);
 				});
 				start.countDown();
-				boolean payWon;
-				boolean expireWon;
 				try {
 					paid.get(30, SECONDS);
-					expireWon = expired.get(30, SECONDS);
-					payWon = statusOf(id) == BookingStatus.CONFIRMED;
+					expired.get(30, SECONDS);
 				} catch (ExecutionException ex) {
 					throw new AssertionError("race " + i + " failed", ex.getCause());
 				}
 
-				assertThat(payWon).as("exactly one side wins, race %d", i).isNotEqualTo(expireWon);
 				List<EventSeat> s = seatsOf.get(i).stream().map(this::seat).toList();
-				if (payWon) {
-					assertThat(statusOf(id)).isEqualTo(BookingStatus.CONFIRMED);
-					assertThat(s).allSatisfy(x -> {
-						assertThat(x.getStatus()).isEqualTo(EventSeatStatus.SOLD);
-						assertThat(x.getBookingId()).isEqualTo(id);
-					});
-					assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
-				} else {
-					assertThat(statusOf(id)).isEqualTo(BookingStatus.EXPIRED);
-					assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isTrue();
-					assertThat(s).allSatisfy(x -> {
-						assertThat(x.getStatus()).isEqualTo(EventSeatStatus.AVAILABLE);
-						assertThat(x.getBookingId()).isNull();
-					});
-					assertThat(tickets.findByBookingIdOrderById(id)).isEmpty();
-				}
+				assertThat(statusOf(id)).as("race %d", i).isEqualTo(BookingStatus.CONFIRMED);
+				assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isFalse();
+				assertThat(s).allSatisfy(x -> {
+					assertThat(x.getStatus()).isEqualTo(EventSeatStatus.SOLD);
+					assertThat(x.getBookingId()).isEqualTo(id);
+				});
+				assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
 			}
 		} finally {
 			pool.shutdownNow();

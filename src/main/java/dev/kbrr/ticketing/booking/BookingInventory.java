@@ -1,7 +1,10 @@
 package dev.kbrr.ticketing.booking;
 
 import dev.kbrr.ticketing.event.EventRepository;
+import dev.kbrr.ticketing.event.EventSeatRepository;
+import dev.kbrr.ticketing.event.EventSeatStatus;
 import dev.kbrr.ticketing.event.SeatingMode;
+import dev.kbrr.ticketing.event.TicketType;
 import dev.kbrr.ticketing.event.TicketTypeRepository;
 import java.time.Instant;
 import java.util.Comparator;
@@ -23,13 +26,15 @@ class BookingInventory {
 	private final EventRepository events;
 	private final TicketTypeRepository ticketTypes;
 	private final SeatInventory seatInventory;
+	private final EventSeatRepository eventSeats;
 	private final TicketRepository tickets;
 
 	BookingInventory(EventRepository events, TicketTypeRepository ticketTypes, SeatInventory seatInventory,
-			TicketRepository tickets) {
+			EventSeatRepository eventSeats, TicketRepository tickets) {
 		this.events = events;
 		this.ticketTypes = ticketTypes;
 		this.seatInventory = seatInventory;
+		this.eventSeats = eventSeats;
 		this.tickets = tickets;
 	}
 
@@ -63,6 +68,35 @@ class BookingInventory {
 		for (BookingItem item : lockOrder(booking)) { // the list is built before the first update detaches booking
 			expectOneRow(ticketTypes.release(item.getTicketTypeId(), item.getQuantity()), id);
 		}
+	}
+
+	/**
+	 * Re-takes, as HELD for this booking, the inventory an expired or cancelled booking recorded. All or nothing:
+	 * everything is locked and checked first, so on {@code false} nothing changed.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	boolean reclaim(Booking booking) {
+		UUID id = booking.getId();
+		if (isReserved(booking)) {
+			List<UUID> seatIds = List.copyOf(booking.getEventSeatIds());
+			if (!eventSeats.lockByIds(booking.getEventId(), seatIds).stream()
+					.allMatch(s -> s.getStatus() == EventSeatStatus.AVAILABLE)) {
+				return false;
+			}
+			seatInventory.hold(seatIds, id); // a missing seat shows up here as a short count: IllegalStateException
+			return true;
+		}
+		List<BookingItem> items = lockOrder(booking); // read before hold clears the persistence context
+		for (BookingItem item : items) {
+			TicketType t = ticketTypes.findForUpdateById(item.getTicketTypeId()).orElseThrow();
+			if (t.getCapacity() - t.getHeld() - t.getSold() < item.getQuantity()) {
+				return false;
+			}
+		}
+		for (BookingItem item : items) {
+			expectOneRow(ticketTypes.hold(item.getTicketTypeId(), item.getQuantity()), id);
+		}
+		return true;
 	}
 
 	/** Decided by the event's mode before any inventory is touched; reserved never uses the ticket-type counters. */

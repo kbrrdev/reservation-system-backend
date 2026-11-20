@@ -1,7 +1,10 @@
 package dev.kbrr.ticketing.event;
 
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
@@ -10,6 +13,10 @@ import org.springframework.data.jpa.repository.Query;
  * the UPDATE plus the re-checked WHERE clause make overselling impossible. Each returns the rows changed (0 or 1).
  */
 public interface TicketTypeRepository extends JpaRepository<TicketType, UUID> {
+
+	/** Locks the counters so a capacity check stays true until commit (late-payment re-claim). */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<TicketType> findForUpdateById(UUID id);
 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("""

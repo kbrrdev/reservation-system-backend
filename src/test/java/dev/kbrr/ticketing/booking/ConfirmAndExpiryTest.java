@@ -158,12 +158,14 @@ class ConfirmAndExpiryTest {
 		clock.advance(PAST_EXPIRY);
 		assertThat(bookings.expire(id)).isTrue();
 
-		// A late payment is accepted (the provider must stop retrying) and flagged for refund; nothing is sold.
+		// The tickets are still free, so the late payment re-claims them; a cancel after that is too late.
 		assertThat(fx.pay(id).getStatus()).isEqualTo(200);
-		assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isTrue();
+		assertThat(statusOf(id)).isEqualTo(BookingStatus.CONFIRMED);
+		assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isFalse();
 		cancel(c, id).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOKING_NOT_PENDING"));
 		assertThat(type(e).getHeld()).isZero();
-		assertThat(statusOf(id)).isEqualTo(BookingStatus.EXPIRED);
+		assertThat(type(e).getSold()).isEqualTo(2);
+		assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
 	}
 
 	@Test
@@ -264,7 +266,10 @@ class ConfirmAndExpiryTest {
 		assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
 	}
 
-	/** Smoke test: payment and expiry race on the same overdue booking; exactly one wins, counters move once. */
+	/**
+	 * Smoke test: payment and expiry race on the same overdue booking. Either order ends CONFIRMED (a payment after
+	 * the expiry re-claims the still-free tickets), and the counters end as one sale.
+	 */
 	@Test
 	void payRaceWithExpiry() throws Exception {
 		int quantity = 2;
@@ -287,7 +292,7 @@ class ConfirmAndExpiryTest {
 				CountDownLatch start = new CountDownLatch(1);
 				Future<?> paid = pool.submit(() -> {
 					assertThat(start.await(10, SECONDS)).isTrue();
-					payments.handle(payment); // a payment that loses the race is flagged for refund, not thrown
+					payments.handle(payment);
 					return null;
 				});
 				Future<Boolean> expired = pool.submit(() -> {
@@ -295,29 +300,19 @@ class ConfirmAndExpiryTest {
 					return bookings.expire(id);
 				});
 				start.countDown();
-				boolean payWon;
-				boolean expireWon;
 				try {
 					paid.get(30, SECONDS);
-					expireWon = expired.get(30, SECONDS);
-					payWon = statusOf(id) == BookingStatus.CONFIRMED;
+					expired.get(30, SECONDS);
 				} catch (ExecutionException ex) {
 					throw new AssertionError("race " + i + " failed", ex.getCause());
 				}
 
-				assertThat(payWon).as("exactly one side wins, race %d", i).isNotEqualTo(expireWon);
 				TicketType t = type(events.get(i));
+				assertThat(statusOf(id)).as("race %d", i).isEqualTo(BookingStatus.CONFIRMED);
+				assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isFalse();
 				assertThat(t.getHeld()).isZero();
-				if (payWon) {
-					assertThat(statusOf(id)).isEqualTo(BookingStatus.CONFIRMED);
-					assertThat(t.getSold()).isEqualTo(quantity);
-					assertThat(tickets.findByBookingIdOrderById(id)).hasSize(quantity);
-				} else {
-					assertThat(statusOf(id)).isEqualTo(BookingStatus.EXPIRED);
-					assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isTrue();
-					assertThat(t.getSold()).isZero();
-					assertThat(tickets.findByBookingIdOrderById(id)).isEmpty();
-				}
+				assertThat(t.getSold()).isEqualTo(quantity);
+				assertThat(tickets.findByBookingIdOrderById(id)).hasSize(quantity);
 			}
 		} finally {
 			pool.shutdownNow();
