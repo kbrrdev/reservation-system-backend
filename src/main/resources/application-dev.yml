@@ -2,4 +2,7 @@
 ticketing:
   dev-seed:
     password: devpassword123
+  payments.fake: {enabled: true, webhook-secret: dev-fake-secret}
+  countries.PH.payment-provider: ${PH_PAYMENT_PROVIDER:fake}
+  # kept until Task 3 removes FakePaymentController
   fake-payments.enabled: true

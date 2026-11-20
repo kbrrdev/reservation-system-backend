@@ -2,7 +2,12 @@ ticketing:
   jwt:
     secret: test-secret-test-secret-test-secret-0123456789
   countries:
+    PH: {payment-provider: fake}
     JP: {enabled: true, currency: JPY, payment-provider: fake, min-charge-minor: 50}
     US: {enabled: false, currency: USD, payment-provider: fake, min-charge-minor: 50}
+  payments:
+    fake: {enabled: true, webhook-secret: test-fake-secret}
+    paymongo.webhook-secret: whsk_test_secret
+  # kept until Task 3 removes FakePaymentController
   fake-payments.enabled: true
   scheduling.enabled: false

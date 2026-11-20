@@ -50,6 +50,9 @@ class Booking {
 	private Instant createdAt;
 	private Instant cancelledAt;
 	private UUID cancelledBy;
+	private String paymentReference;
+	private String checkoutUrl;
+	private boolean refundRequired;
 
 	@Version
 	private long version;
@@ -94,6 +97,11 @@ class Booking {
 		this.cancelledBy = by;
 	}
 
+	/** Admin acknowledged the refund; saved through @Version so a stale admin view fails. */
+	void markRefundHandled() {
+		this.refundRequired = false;
+	}
+
 	UUID getId() { return id; }
 	UUID getUserId() { return userId; }
 	UUID getEventId() { return eventId; }
@@ -106,6 +114,9 @@ class Booking {
 	Instant getCreatedAt() { return createdAt; }
 	Instant getCancelledAt() { return cancelledAt; }
 	UUID getCancelledBy() { return cancelledBy; }
+	String getPaymentReference() { return paymentReference; }
+	String getCheckoutUrl() { return checkoutUrl; }
+	boolean isRefundRequired() { return refundRequired; }
 	long getVersion() { return version; }
 	List<BookingItem> getItems() { return items; }
 	Set<UUID> getEventSeatIds() { return eventSeatIds; }
