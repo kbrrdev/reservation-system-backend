@@ -31,7 +31,7 @@ public class VenueService {
 				req.countryCode(), req.timeZone())));
 	}
 
-	List<VenueResponse> list(UUID ownerId) {
+	public List<VenueResponse> list(UUID ownerId) {
 		return venues.findByOwnerIdOrderByName(ownerId).stream().map(VenueResponse::from).toList();
 	}
 

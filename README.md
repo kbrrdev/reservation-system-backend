@@ -9,12 +9,12 @@ that never oversell a seat, verified payment webhooks, and Testcontainers-backed
 
 ## Status
 
-🚧 **Milestone 1 done; milestone 2 next.** Built in milestones; each one is a working, tested slice.
+🚧 **Milestones 1–2 done; milestone 3 next.** Built in milestones; each one is a working, tested slice.
 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Project skeleton, Postgres, Flyway, users + JWT auth | ✅ Done |
-| 2 | Countries, venues, events, general-admission holds | — |
+| 2 | Countries, venues, events, general-admission holds | ✅ Done |
 | 3 | Reserved seating | — |
 | 4 | Payments (PayMongo test mode) | — |
 | 5 | Organizer / admin approval, cancel, check-in | — |
@@ -56,5 +56,20 @@ The `dev` profile seeds three accounts (created only if missing), all with the p
 | `customer@example.test` | CUSTOMER |
 
 The password is for local development only; the seeder never runs without the `dev` profile.
+
+The `dev` profile also seeds one sample event ("Sample Concert", on sale, with VIP and Regular tickets) the first time
+the organizer has no venue.
+
+### Try it
+
+Replace `$TOKEN`, `$EVENT`, `$REGULAR` and `$BOOKING` with the values from the previous responses.
+
+1. Log in: `curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"email":"customer@example.test","password":"devpassword123"}'` and copy `accessToken` into `$TOKEN`.
+2. List events: `curl -s 'localhost:8080/api/events?country=PH'` (copy the event `id` and the Regular ticket type `id`).
+3. Availability: `curl -s localhost:8080/api/events/$EVENT/availability` (Regular `remaining` is 500).
+4. Hold 2 tickets: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$EVENT'","items":[{"ticketTypeId":"'$REGULAR'","quantity":2}]}'` (status `PENDING_PAYMENT`; unpaid holds expire after 10 minutes).
+5. Fake payment (dev only): `curl -s -X POST localhost:8080/api/bookings/$BOOKING/fake-pay -H "Authorization: Bearer $TOKEN"` (status `CONFIRMED`).
+6. Ticket codes: `curl -s localhost:8080/api/bookings/$BOOKING/tickets -H "Authorization: Bearer $TOKEN"` (2 codes).
+7. Availability again: Regular `remaining` is now 498.
 
 Run the tests (needs Docker, for Testcontainers): `./mvnw test`

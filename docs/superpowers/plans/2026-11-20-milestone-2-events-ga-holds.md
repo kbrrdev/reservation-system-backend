@@ -684,11 +684,11 @@ create index tickets_booking on tickets (booking_id);
     so it is validated like any other event.
   - Ticket types "VIP" (`500000`, capacity 50) and "Regular" (`150000`, capacity 500).
 
-- [ ] **Step 1: Implement `DevEventSeeder`.**
+- [x] **Step 1: Implement `DevEventSeeder`.**
 
-- [ ] **Step 2: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (the seeder isn't active in `test`).
+- [x] **Step 2: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (the seeder isn't active in `test`).
 
-- [ ] **Step 3: Manual end-to-end check** (`docker compose up -d`, `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`):
+- [x] **Step 3: Manual end-to-end check** (`docker compose up -d`, `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`):
   1. Log in as `customer@example.test`.
   2. `GET /api/events?country=PH` lists "Sample Concert".
   3. `GET …/availability` shows Regular = 500.
@@ -699,10 +699,15 @@ create index tickets_booking on tickets (booking_id);
 
   Restarting the app creates no second sample event.
 
-- [ ] **Step 4: Update README.** Mark milestone 2 ✅, change the status line to "milestone 3 next", and add the
+- [x] **Step 4: Update README.** Mark milestone 2 ✅, change the status line to "milestone 3 next", and add the
   walk-through above as a short "Try it" list.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: dev sample event, README walk-through for milestone 2"`
+- [x] **Step 5: Commit** — `git commit -m "feat: dev sample event, README walk-through for milestone 2"`
+
+**Done notes (Task 7):**
+- Commit: see `git log` (`feat: dev sample event, README walk-through for milestone 2`). Tests: 97 pass (no new tests; seeder is dev-only). Manual check passed against the Compose Postgres on 5433: event listed, Regular 500, hold 2 gives PENDING_PAYMENT, fake-pay gives CONFIRMED, 2 ticket codes, Regular 498. A second start created no second event; the app was stopped afterwards.
+- Deviations: `VenueService.list` is now public so the seeder (in `event`) can run the "organizer owns any venue" check. `DevUserSeeder` got `@Order(1)`, `DevEventSeeder` `@Order(2)`. Event times come from the injected `Clock` in `Asia/Manila` (sale opens 1 minute ago, starts in 30 days, lasts 3 hours); the sample event therefore ages: after 30 days it is in the past until the DB is wiped.
+- Open questions: none.
 
 ---
 
