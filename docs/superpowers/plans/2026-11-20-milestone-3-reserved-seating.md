@@ -386,7 +386,7 @@ alter table tickets add column event_seat_id uuid references event_seats (id);
 
 The GA branch is unchanged. The GA path's ticket-type counter code must not run for reserved events.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `ReservedHoldTest` (`@IntegrationTest`, MockMvc):
 ```java
@@ -410,10 +410,18 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
    HELD seats == 2 × successes; no seat is in two bookings' booking_seats with status PENDING_PAYMENT */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='ReservedHoldTest,SeatConcurrencyTest'`.
-- [ ] **Step 3: Implement** as above.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`; run `SeatConcurrencyTest` 3 times.
-- [ ] **Step 5: Commit** — `git commit -m "feat: reserved seat holds with ordered row locks"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='ReservedHoldTest,SeatConcurrencyTest'`.
+- [x] **Step 3: Implement** as above.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`; run `SeatConcurrencyTest` 3 times.
+- [x] **Step 5: Commit** — `git commit -m "feat: reserved seat holds with ordered row locks"`
+
+**Done notes (Task 4):**
+- Commit: `a274ead` (feat: reserved seat holds with ordered row locks). Tests: 128 pass (119 + 7 ReservedHoldTest + 2 SeatConcurrencyTest); SeatConcurrencyTest ran green 3 extra times. RED run was a compile failure (3-arg `HoldRequest`, `eventSeatIds` missing).
+- Lock SQL checked with `-Dspring.jpa.show-sql=true`: `lockByIds` emits `... where es1_0.id in (...) order by es1_0.id for no key update of es1_0`.
+- Deviations: rulings applied: `EventRepository.findSeatingModeById` added (JPQL projection, unused until Task 5); `seatLimit` lowers the limit through the organizer `PUT` endpoint, fixtures unchanged. Pending + limit checks moved into a private `checkPendingAndLimit` and the booking construction into `newPurchase`, shared by both branches; GA order (ticket-type 404 → pending → limit) unchanged. The mode check sits right after the sale-window check, so items on a reserved event are 404 before any ticket-type lookup or counter. GA callers of `HoldRequest` in tests now pass `null` as the third arg.
+- Gotchas for Task 5: (1) `markSold`/`markAvailable`/`lockByBookingId` exist but are untested; their row counts must be checked in `SeatInventory.confirm/release`. (2) Every `EventSeatRepository` bulk update clears the persistence context: read `EventSeat`s (ticket type, seat id) and the booking's seat count before calling it, and re-read the booking afterwards. (3) `Booking.eventSeatIds` is a lazy `@ElementCollection`; its size is the `expected` count. (4) `lockForHold` locks foreign-event seats briefly before its 404 (rolled back right away).
+- Interface: `BookingResponse.eventSeatIds` is sorted by Java `UUID` order for display only (not a lock order). `SeatInventory` is package-private with `MANDATORY` methods `lockForHold`, `hold`. `tickets.event_seat_id` column exists but `Ticket` doesn't map it yet (`ddl-auto: validate` allows extra columns).
+- Open questions: none.
 
 ---
 
