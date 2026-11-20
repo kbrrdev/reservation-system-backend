@@ -59,7 +59,11 @@ public class TestFixtures {
 	}
 
 	public VenueResponse venue(User organizer, String countryCode, String timeZone) {
-		return venues.create(organizer.getId(), new VenueRequest("Arena", "1 Main St", "Manila", countryCode, timeZone));
+		return venue(organizer, countryCode, timeZone, "Manila");
+	}
+
+	public VenueResponse venue(User organizer, String countryCode, String timeZone, String city) {
+		return venues.create(organizer.getId(), new VenueRequest("Arena", "1 Main St", city, countryCode, timeZone));
 	}
 
 	/** One "Regular" ticket type; sale started 1h ago, starts in 30 days, lasts 3h (venue-local, from the clock). */

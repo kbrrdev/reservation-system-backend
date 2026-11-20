@@ -387,7 +387,7 @@ create table ticket_types (
   - `EventService.search(filters, PageRequest) -> Page<EventResponse>`, `getPublic(UUID) -> EventResponse`, `availability(UUID) -> AvailabilityResponse`.
 - `SecurityConfig`: `permitAll` for `GET /api/events`, `GET /api/events/*`, `GET /api/events/*/availability`.
 
-- [ ] **Step 1: Write the failing tests** (`PublicEventTest`, no token)
+- [x] **Step 1: Write the failing tests** (`PublicEventTest`, no token)
 
 ```java
 @Test void listFiltersByCountryCityCategoryAndTime() { /* create PH/Manila CONCERT and JP/Tokyo CONFERENCE events;
@@ -403,15 +403,22 @@ create table ticket_types (
 Note: the integration tests share one database, so list assertions must filter by something unique to the test
 (e.g. a city name containing a UUID), not count all events.
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=PublicEventTest`.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=PublicEventTest`.
 
-- [ ] **Step 3: Implement.** Spring MVC's built-in method validation handles the `@Min`/`@Max` params (M1 already maps
+- [x] **Step 3: Implement.** Spring MVC's built-in method validation handles the `@Min`/`@Max` params (M1 already maps
   `HandlerMethodValidationException` → `VALIDATION_FAILED`). A filter without an offset fails type conversion → `400`
   through the base handler.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: public event search, details and GA availability"`
+- [x] **Step 5: Commit** — `git commit -m "feat: public event search, details and GA availability"`
+
+**Done notes (Task 4):**
+- Commit: see `git log` (feat: public event search, details and GA availability). Tests: 72 pass (66 + 6 PublicEventTest). RED run: all 6 failed with 401 before the security/controller change.
+- Deviations: `EventService.search` takes the filters as separate params (country, city, category, from, to Instant) plus `PageRequest`, no filter record. `TestFixtures.venue` got a 4-arg overload with the city.
+- Gotchas: Spring Data 4 `Specification.allOf` rejects null specs; the no-op filters return `Specification.unrestricted()`. `"not-a-uuid"` path variable yields `400 MALFORMED_REQUEST` (not VALIDATION_FAILED). The category-filter test creates its CONFERENCE event over HTTP since `gaEvent` hardcodes CONCERT.
+- Interface: `PagedModel` JSON is `content` + `page{size,number,totalElements,totalPages}`; `EventService.getPublic/availability/search` are package-private; `AvailabilityResponse` is public. Availability is computed from `capacity - held - sold` (no locking; advisory only).
+- Open questions: none.
 
 ---
 

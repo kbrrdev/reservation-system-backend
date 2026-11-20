@@ -3,6 +3,7 @@ package dev.kbrr.ticketing.event;
 import dev.kbrr.ticketing.booking.BookingProperties;
 import dev.kbrr.ticketing.common.ApiException;
 import dev.kbrr.ticketing.common.ErrorCode;
+import dev.kbrr.ticketing.common.Money;
 import dev.kbrr.ticketing.country.CountryProperties;
 import dev.kbrr.ticketing.country.CountryProperties.Country;
 import dev.kbrr.ticketing.venue.Venue;
@@ -14,6 +15,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,6 +96,33 @@ public class EventService {
 	@Transactional(readOnly = true)
 	List<EventResponse> listOwned(UUID organizerId) {
 		return events.findByOrganizerIdOrderByStartsAtDesc(organizerId).stream().map(EventResponse::from).toList();
+	}
+
+	@Transactional(readOnly = true)
+	Page<EventResponse> search(String country, String city, EventCategory category, Instant from, Instant to,
+			PageRequest page) {
+		Specification<Event> spec = Specification.allOf(EventSpecs.onSale(), EventSpecs.country(country),
+				EventSpecs.city(city), EventSpecs.category(category), EventSpecs.startsFrom(from),
+				EventSpecs.startsBefore(to));
+		return events.findAll(spec, page).map(EventResponse::from);
+	}
+
+	@Transactional(readOnly = true)
+	EventResponse getPublic(UUID id) {
+		return EventResponse.from(requireOnSale(id));
+	}
+
+	@Transactional(readOnly = true)
+	AvailabilityResponse availability(UUID id) {
+		Event e = requireOnSale(id);
+		return new AvailabilityResponse(e.getId(), e.getTicketTypes().stream().map(t -> new AvailabilityResponse.Item(
+				t.getId(), t.getName(), new Money(t.getPriceMinor(), e.getCurrency()),
+				t.getCapacity() - t.getHeld() - t.getSold())).toList());
+	}
+
+	private Event requireOnSale(UUID id) {
+		return events.findById(id).filter(e -> e.getStatus() == EventStatus.ON_SALE)
+				.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Event not found"));
 	}
 
 	private Event requireOwned(UUID organizerId, UUID id) {
