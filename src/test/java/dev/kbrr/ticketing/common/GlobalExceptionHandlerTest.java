@@ -64,6 +64,14 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
+	void apiExceptionCarriesFieldErrors() throws Exception {
+		mvc.perform(get("/probe/field-error")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+				.andExpect(jsonPath("$.errors[0].field").value("startsAt"))
+				.andExpect(jsonPath("$.errors[0].message").value("does not exist in zone"));
+	}
+
+	@Test
 	void unexpectedErrorDoesNotLeak() throws Exception {
 		mvc.perform(get("/probe/boom")).andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
@@ -102,6 +110,11 @@ class GlobalExceptionHandlerTest {
 		@GetMapping("/probe/api-error")
 		String apiError() {
 			throw new ApiException(ErrorCode.EMAIL_TAKEN, "taken");
+		}
+
+		@GetMapping("/probe/field-error")
+		String fieldError() {
+			throw ApiException.fieldError("startsAt", "does not exist in zone");
 		}
 
 		@GetMapping("/probe/boom")

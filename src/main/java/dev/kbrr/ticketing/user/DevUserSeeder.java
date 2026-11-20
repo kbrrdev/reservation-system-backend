@@ -5,12 +5,14 @@ import java.util.Set;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /** Local-dev accounts only; the bean exists solely under the "dev" profile. Idempotent: skips existing emails. */
 @Component
 @Profile("dev")
+@Order(1)
 public class DevUserSeeder implements ApplicationRunner {
 
 	private final UserRepository users;
