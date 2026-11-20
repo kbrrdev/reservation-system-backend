@@ -202,7 +202,7 @@ git commit -m "chore: scaffold Spring Boot 4 project with Postgres compose and t
   - JWT `roles` claim → authorities `ROLE_<name>` (via `JwtGrantedAuthoritiesConverter` with
     `setAuthoritiesClaimName("roles")`, `setAuthorityPrefix("ROLE_")`).
 
-- [ ] **Step 1: Write the failing exception-handler tests** (standalone MockMvc, no Spring context)
+- [x] **Step 1: Write the failing exception-handler tests** (standalone MockMvc, no Spring context)
 
 `GlobalExceptionHandlerTest` builds `MockMvcBuilders.standaloneSetup(new ProbeController()).setControllerAdvice(new GlobalExceptionHandler())`
 with a nested test-only `ProbeController` exposing: `POST /probe/validated` (`@Valid` record with `@NotBlank String name`),
@@ -237,12 +237,12 @@ with a nested test-only `ProbeController` exposing: `POST /probe/validated` (`@V
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./mvnw test -Dtest=GlobalExceptionHandlerTest`
 Expected: compilation failure (`ErrorCode`, `ApiException`, `GlobalExceptionHandler` missing).
 
-- [ ] **Step 3: Implement `ErrorCode`, `ApiException`, `Problems`, `GlobalExceptionHandler`**
+- [x] **Step 3: Implement `ErrorCode`, `ApiException`, `Problems`, `GlobalExceptionHandler`**
 
 `GlobalExceptionHandler`: `@RestControllerAdvice`, extends `ResponseEntityExceptionHandler`.
 Override `handleMethodArgumentNotValid` → `VALIDATION_FAILED` with property `errors` = list of `{field, message}`;
@@ -255,11 +255,11 @@ Also override `handleExceptionInternal`: if the body is a `ProblemDetail` with n
 415 etc.), set it by status — 404 `NOT_FOUND`, 405 `METHOD_NOT_ALLOWED`, 415 `UNSUPPORTED_MEDIA_TYPE`, other 4xx
 `MALFORMED_REQUEST`, 5xx `INTERNAL_ERROR` — so every error carries a code.
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run: `./mvnw test -Dtest=GlobalExceptionHandlerTest` → Expected: `Tests run: 5, Failures: 0`.
 
-- [ ] **Step 5: Write the failing security tests** (`@IntegrationTest`)
+- [x] **Step 5: Write the failing security tests** (`@IntegrationTest`)
 
 ```java
 @Test void noToken() throws Exception {
@@ -280,11 +280,11 @@ Run: `./mvnw test -Dtest=GlobalExceptionHandlerTest` → Expected: `Tests run: 5
 }
 ```
 
-- [ ] **Step 6: Run to verify they fail**
+- [x] **Step 6: Run to verify they fail**
 
 Run: `./mvnw test -Dtest=SecurityErrorsTest` → Expected: failures (default Boot security returns 401 with empty body; no `code`).
 
-- [ ] **Step 7: Implement `JwtProperties`, `JwtConfig`, `ProblemDetailAuthHandlers`, `SecurityConfig`**
+- [x] **Step 7: Implement `JwtProperties`, `JwtConfig`, `ProblemDetailAuthHandlers`, `SecurityConfig`**
 
 - `JwtConfig`: key = `new SecretKeySpec(secret UTF-8 bytes, "HmacSHA256")`; encoder `new NimbusJwtEncoder(new ImmutableSecret<>(key))`;
   decoder `NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build()` with validators
@@ -298,19 +298,25 @@ Run: `./mvnw test -Dtest=SecurityErrorsTest` → Expected: failures (default Boo
   `oauth2ResourceServer(o -> o.jwt(...).authenticationEntryPoint(handlers))`, `exceptionHandling` with both handlers.
 - Add `@ConfigurationPropertiesScan` to `TicketingApplication`.
 
-- [ ] **Step 8: Run all tests**
+- [x] **Step 8: Run all tests**
 
 Run: `./mvnw test` → Expected: `BUILD SUCCESS` (GlobalExceptionHandlerTest 5, SecurityErrorsTest 7, context 1).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src
 git commit -m "feat: ProblemDetail error model, JWT resource server security"
 ```
 
----
+**Done notes (Task 2):**
+- Commit: 79eac03. Tests: 13 total (handler 5, security 7, context 1), passing.
+- Deviations: none.
+- Gotchas: (1) In Spring 7, `ResponseEntityExceptionHandler.handleExceptionInternal` receives a **null body** for `ErrorResponse` exceptions (404/405/415...) and builds the ProblemDetail inside `super`; so add the `code` property to the body of the `super` result, not the incoming arg. (2) Jackson 3 `tools.jackson.databind.json.JsonMapper` is injectable as a bean. (3) `JwtValidators.createDefaultWithIssuer("ticketing")` covers timestamp + issuer. (4) Tests that mint tokens inject `JwtEncoder` + `Clock` and set `iss=ticketing`. (5) `JwtProperties` fails startup if `JWT_SECRET` is missing/short. (6) Unmatched `/api/**` GETs resolve as NoResourceFoundException, which surfaces as 404 NOT_FOUND.
+- Interfaces: as planned; `JwtAuthenticationConverter` is its own bean in `JwtConfig`. Package-private beans (`JwtConfig`, `SecurityConfig`, `ProblemDetailAuthHandlers`); `JwtProperties`, `Problems`, `ErrorCode`, `ApiException` are public.
+- Open questions: none.
 
+---
 ### Task 3: Users and registration
 
 **Files:**
