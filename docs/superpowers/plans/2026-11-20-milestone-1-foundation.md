@@ -92,7 +92,7 @@ src/test/java/dev/kbrr/ticketing/
   Every later integration test class uses it and injects `MockMvc`.
 - Produces: `Clock` bean (`TimeConfig.clock()` → `Clock.systemUTC()`).
 
-- [ ] **Step 1: Generate the project into the repo root**
+- [x] **Step 1: Generate the project into the repo root**
 
 ```bash
 curl -s -o /tmp/ticketing.zip "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=4.1.2&javaVersion=25&groupId=dev.kbrr&artifactId=ticketing&name=ticketing&packageName=dev.kbrr.ticketing&dependencies=web,data-jpa,validation,security,oauth2-resource-server,flyway,postgresql,testcontainers,springdoc-openapi"
@@ -105,11 +105,11 @@ Expected `pom.xml` dependencies include `spring-boot-starter-webmvc`, `spring-bo
 `spring-boot-starter-security-oauth2-resource-server`, `flyway-database-postgresql`, `springdoc-openapi-starter-webmvc-ui`,
 and test starters `*-test`, `spring-boot-testcontainers`, `testcontainers-postgresql`.
 
-- [ ] **Step 2: Pin Postgres in tests**
+- [x] **Step 2: Pin Postgres in tests**
 
 In `TestcontainersConfiguration` change `DockerImageName.parse("postgres:latest")` to `"postgres:16"`.
 
-- [ ] **Step 3: Write `docker-compose.yml`, `.env.example`, `application.yml`, `application-test.yml`**
+- [x] **Step 3: Write `docker-compose.yml`, `.env.example`, `application.yml`, `application-test.yml`**
 
 `docker-compose.yml`: one service `postgres` (`postgres:16`), `POSTGRES_DB: ticketing`,
 `POSTGRES_USER: ${DB_USERNAME}`, `POSTGRES_PASSWORD: ${DB_PASSWORD}`, port `5432:5432`, named volume `pgdata`,
@@ -146,28 +146,35 @@ ticketing:
 `application-test.yml`: `ticketing.jwt.secret: test-secret-test-secret-test-secret-0123456789` (test-only value).
 The datasource comes from `@ServiceConnection`.
 
-- [ ] **Step 4: Create `TimeConfig` and `IntegrationTest`**
+- [x] **Step 4: Create `TimeConfig` and `IntegrationTest`**
 
 `common/TimeConfig.java`: `@Configuration` with `@Bean Clock clock()` returning `Clock.systemUTC()`.
 `IntegrationTest.java`: the meta-annotation described in Interfaces (`@Target(TYPE) @Retention(RUNTIME)`).
 Change `TicketingApplicationTests` to use `@IntegrationTest` instead of `@Import` + `@SpringBootTest`.
 
-- [ ] **Step 5: Run the context test (Docker must be running)**
+- [x] **Step 5: Run the context test (Docker must be running)**
 
 Run: `./mvnw test -Dtest=TicketingApplicationTests`
 Expected: `BUILD SUCCESS`, `Tests run: 1, Failures: 0`. (Flyway finds no migrations yet — that's fine.)
 
-- [ ] **Step 6: Check Compose starts**
+- [x] **Step 6: Check Compose starts**
 
 Run: `cp .env.example .env` (fill `DB_PASSWORD`, `JWT_SECRET`), then `docker compose up -d && docker compose ps`
 Expected: `postgres` is `healthy`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add .
 git commit -m "chore: scaffold Spring Boot 4 project with Postgres compose and test setup"
 ```
+
+**Done notes (Task 1):**
+- Commit: see `git log` (scaffold commit). Tests: 1 (`TicketingApplicationTests`), passing.
+- Deviations: none. `src/test/resources` did not exist, so it was created for `application-test.yml`.
+- Gotchas: springdoc logs two WARNs that /v3/api-docs and /swagger-ui.html are enabled; Mockito/ByteBuddy dynamic-agent warnings appear on JDK 25 (harmless). Context start takes about 40s on first run (image pull). Local `.env` is git-ignored and the compose postgres container is left running.
+- Interfaces: `@IntegrationTest` and `Clock` bean (`TimeConfig`) as planned. `TestcontainersConfiguration` is package-private in `dev.kbrr.ticketing`, so tests in sub-packages use it only via `@IntegrationTest`.
+- Open questions: none.
 
 ---
 
