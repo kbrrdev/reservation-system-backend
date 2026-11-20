@@ -83,7 +83,7 @@ class HoldConcurrencyTest {
 			customers.add(fx.customer().getId());
 		}
 
-		List<ErrorCode> outcomes = race(customers, new HoldRequest(e.id(), List.of(new HoldRequest.Item(type, 1))));
+		List<ErrorCode> outcomes = race(customers, new HoldRequest(e.id(), List.of(new HoldRequest.Item(type, 1)), null));
 
 		assertThat(outcomes).filteredOn(o -> o == null).hasSize(10);
 		assertThat(outcomes).filteredOn(o -> o == ErrorCode.TICKETS_UNAVAILABLE).hasSize(20);
@@ -98,7 +98,7 @@ class HoldConcurrencyTest {
 		UUID customer = fx.customer().getId();
 
 		List<ErrorCode> outcomes = race(Collections.nCopies(8, customer),
-				new HoldRequest(e.id(), List.of(new HoldRequest.Item(e.ticketTypes().getFirst().id(), 2))));
+				new HoldRequest(e.id(), List.of(new HoldRequest.Item(e.ticketTypes().getFirst().id(), 2)), null));
 
 		assertThat(outcomes).filteredOn(o -> o == null).hasSize(1);
 		assertThat(outcomes).filteredOn(o -> o != null).hasSize(7)
