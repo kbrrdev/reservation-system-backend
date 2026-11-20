@@ -523,7 +523,7 @@ create table booking_items (
    - `paymentProvider` = `countries.get(venue.countryCode).paymentProvider()`.
    - Items with unit-price snapshots.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `HoldTest` (`@IntegrationTest`, MockMvc):
 ```java
@@ -554,13 +554,21 @@ create table booking_items (
    exactly 1 succeeds (others PENDING_HOLD_EXISTS or TICKET_LIMIT_EXCEEDED); countActiveTickets == 2 */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='HoldTest,HoldConcurrencyTest'`.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='HoldTest,HoldConcurrencyTest'`.
 
-- [ ] **Step 3: Implement** the migration, entities, queries, service and controller following the algorithm above.
+- [x] **Step 3: Implement** the migration, entities, queries, service and controller following the algorithm above.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`. Run the concurrency test 3 times to check it isn't flaky.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`. Run the concurrency test 3 times to check it isn't flaky.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: GA holds with per-customer limit and oversell-proof counters"`
+- [x] **Step 5: Commit** — `git commit -m "feat: GA holds with per-customer limit and oversell-proof counters"`
+
+**Done notes (Task 5):**
+- Commit: see `git log` (feat: GA holds with per-customer limit and oversell-proof counters). Tests: 87 pass (72 + 13 HoldTest + 2 HoldConcurrencyTest); the concurrency test ran green 3 extra times. RED run was a compile failure (booking types missing).
+- Lock SQL checked with `-Dspring.jpa.show-sql=true`: `findForShareById` emits `for share of e1_0` (no native query needed); `findForUpdateById` emits `for no key update of u1_0` (Hibernate 7's Postgres PESSIMISTIC_WRITE). That still serializes one user's holds and, unlike `FOR UPDATE`, does not block FK `KEY SHARE` checks from inserts referencing the user.
+- Deviations: `EventRepository` and `TicketTypeRepository` are now public (the booking package calls them). Booking classes (`Booking`, `BookingItem`, enums, `BookingRepository`, `BookingService`, DTOs) are package-private. The booking's items and total are built before the counter updates (prices must be read before the bulk updates clear the persistence context); the order of checks and locks is as in the brief. `HoldTest.invalidQuantitiesAndDuplicates` also covers `items: [null]` → 400. `list` adds `id` as a tie-break sort after `createdAt desc`.
+- Gotchas: (1) `MutableClock` does not tick: everything in one test sees the same `now`, and it starts truncated to microseconds so instants round-trip through `timestamptz` exactly. It is shared by the whole cached test context and only moves forward (about 13 min per full run). (2) Items are held in `UUID.compareTo` order (Java's signed order, not Postgres uuid order); confirm/release in Task 6 must use the same Java ordering to keep a single lock order. (3) After any `TicketTypeRepository`/`updateStatus` call the persistence context is cleared: entities loaded earlier are detached (lazy `event.getVenue()` would fail), so read what you need first. (4) `TICKETS_UNAVAILABLE` property `unavailable` is a list of UUIDs (JSON strings).
+- Interface: `TicketTypeRepository.confirm/release` and `BookingRepository.updateStatus` exist but are unused and untested until Task 6. `BOOKING_NOT_PENDING` is unused so far. `BookingService.hold/get/list` are package-private.
+- Open questions: none.
 
 ---
 
