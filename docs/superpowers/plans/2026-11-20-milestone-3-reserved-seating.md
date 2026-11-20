@@ -513,6 +513,12 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
 - Gotchas: the hold request body is `{"eventId", "eventSeatIds"}`.
 - Open questions: none.
 
+**Done notes (final review fixes):**
+- Fixed: reserved hold/confirm/expire/cancel tests now assert the ticket-type held+sold counters stay 0; cancel test asserts seats' booking_id is cleared; `lockByIds` is scoped to the event (the foreign-event check in `SeatInventory` became redundant and was removed; size mismatch is still a 404); README "Try it" lists `$PLAY`, `$SEAT1`, `$SEAT2` and says seat ids come from the availability `eventSeatId`.
+- Verification pending: only `test-compile` was run; the full suite must be re-run after Docker Desktop is restarted.
+- Deferred to M4: pay-wins side of payRaceWithExpiry and a cancel-vs-hold race test; partial unique index on tickets(event_seat_id) where status <> 'VOID'; ExpiryJob poison-batch starvation.
+- Deferred to M5: rowsOf Object[] projection; multi-section list and sections GET 404 tests; per-event and per-booking extra queries on list endpoints; non-transactional dev seeder.
+
 ---
 
 ## Decisions made in this plan (spec left them open or M3 narrows them)

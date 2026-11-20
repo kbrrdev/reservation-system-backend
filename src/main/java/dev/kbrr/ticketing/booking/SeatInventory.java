@@ -26,11 +26,11 @@ class SeatInventory {
 		this.seats = seats;
 	}
 
-	/** Locks the requested seats; any that are missing or belong to another event make the whole request a 404. */
+	/** Locks the requested seats of the event; any that are missing or belong to another event make the whole request a 404. */
 	@Transactional(propagation = Propagation.MANDATORY)
 	List<EventSeat> lockForHold(UUID eventId, Set<UUID> seatIds) {
-		List<EventSeat> locked = seats.lockByIds(seatIds);
-		if (locked.size() != seatIds.size() || locked.stream().anyMatch(s -> !s.getEventId().equals(eventId))) {
+		List<EventSeat> locked = seats.lockByIds(eventId, seatIds);
+		if (locked.size() != seatIds.size()) {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Seat not found");
 		}
 		return locked;

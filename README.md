@@ -63,7 +63,7 @@ and Balcony sections).
 
 ### Try it
 
-Replace `$TOKEN`, `$EVENT`, `$REGULAR` and `$BOOKING` with the values from the previous responses.
+Replace `$TOKEN`, `$EVENT`, `$REGULAR`, `$BOOKING`, `$PLAY`, `$SEAT1` and `$SEAT2` with the values from the previous responses.
 
 1. Log in: `curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"email":"customer@example.test","password":"devpassword123"}'` and copy `accessToken` into `$TOKEN`.
 2. List events: `curl -s 'localhost:8080/api/events?country=PH'` (copy the event `id` and the Regular ticket type `id`).
@@ -73,7 +73,7 @@ Replace `$TOKEN`, `$EVENT`, `$REGULAR` and `$BOOKING` with the values from the p
 6. Ticket codes: `curl -s localhost:8080/api/bookings/$BOOKING/tickets -H "Authorization: Bearer $TOKEN"` (2 codes).
 7. Availability again: Regular `remaining` is now 498.
 
-Reserved seating: the same flow with "Sample Play". Its availability lists every seat with an `eventSeatId`; hold seats by
+Reserved seating: the same flow with "Sample Play". Its availability response lists every seat with an `eventSeatId` (copy two into `$SEAT1` / `$SEAT2`, and the event `id` into `$PLAY`); hold seats by
 sending those ids instead of ticket types: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$PLAY'","eventSeatIds":["'$SEAT1'","'$SEAT2'"]}'`.
 Fake-pay it, and the tickets carry `section` / `row` / `number`; those seats show as `SOLD` in availability.
 

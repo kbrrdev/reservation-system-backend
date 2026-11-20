@@ -44,8 +44,8 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, UUID> {
 	List<SeatMapRow> findSeatLabels(Collection<UUID> eventSeatIds);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("select es from EventSeat es where es.id in :ids order by es.id")
-	List<EventSeat> lockByIds(Collection<UUID> ids);
+	@Query("select es from EventSeat es where es.eventId = :eventId and es.id in :ids order by es.id")
+	List<EventSeat> lockByIds(UUID eventId, Collection<UUID> ids);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select es from EventSeat es where es.bookingId = :bookingId order by es.id")

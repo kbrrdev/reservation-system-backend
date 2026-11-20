@@ -96,6 +96,13 @@ class ReservedConfirmAndExpiryTest {
 		return bookingRepository.findById(id).orElseThrow().getStatus();
 	}
 
+	/** Reserved flows never touch the ticket-type counters. */
+	private void assertCountersZero(EventResponse e) {
+		assertThat(jdbc.queryForObject(
+				"select coalesce(sum(held),0) + coalesce(sum(sold),0) from ticket_types where event_id = ?", Long.class,
+				e.id())).isZero();
+	}
+
 	@Test
 	void fakePayConfirmsSeatsAndIssuesSeatTickets() throws Exception {
 		EventResponse e = event(3);
@@ -123,6 +130,7 @@ class ReservedConfirmAndExpiryTest {
 		// Seat s1 is number 1 (findSeatMap orders by seat number): the label belongs to the right seat.
 		List<Integer> s1Number = JsonPath.read(body, "$[?(@.eventSeatId=='" + s1 + "')].number");
 		assertThat(s1Number).containsExactly(1);
+		assertCountersZero(e);
 	}
 
 	@Test
@@ -143,6 +151,7 @@ class ReservedConfirmAndExpiryTest {
 		}
 		mvc.perform(get("/api/bookings/" + id).header("Authorization", fx.bearer(c)))
 				.andExpect(jsonPath("$.eventSeatIds", containsInAnyOrder(s1.toString(), s2.toString())));
+		assertCountersZero(e);
 		hold(fx.customer(), e, s1, s2).andExpect(status().isCreated());
 	}
 
@@ -157,6 +166,9 @@ class ReservedConfirmAndExpiryTest {
 		cancel(c, id).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
 		assertThat(seat(s1).getStatus()).isEqualTo(EventSeatStatus.AVAILABLE);
 		assertThat(seat(s2).getStatus()).isEqualTo(EventSeatStatus.AVAILABLE);
+		assertThat(seat(s1).getBookingId()).isNull();
+		assertThat(seat(s2).getBookingId()).isNull();
+		assertCountersZero(e);
 		cancel(c, id).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOKING_NOT_PENDING"));
 		assertThat(eventSeats.countByEventIdAndStatus(e.id(), EventSeatStatus.AVAILABLE)).isEqualTo(3);
 	}

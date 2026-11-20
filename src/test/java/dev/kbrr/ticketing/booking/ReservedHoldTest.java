@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -33,6 +34,7 @@ class ReservedHoldTest {
 	@Autowired MockMvc mvc;
 	@Autowired TestFixtures fx;
 	@Autowired EventSeatRepository eventSeats;
+	@Autowired JdbcTemplate jdbc;
 
 	private User org;
 
@@ -90,6 +92,9 @@ class ReservedHoldTest {
 				.andExpect(jsonPath("$.sections[1].seats[1].status").value("HELD"))
 				.andExpect(jsonPath("$.sections[1].seats[2].status").value("AVAILABLE"))
 				.andExpect(jsonPath("$.ticketTypes[?(@.name=='Premium')].remaining").value(contains(4)));
+		assertThat(jdbc.queryForObject(
+				"select coalesce(sum(held),0) + coalesce(sum(sold),0) from ticket_types where event_id = ?", Long.class,
+				e.id())).isZero();
 	}
 
 	@Test
