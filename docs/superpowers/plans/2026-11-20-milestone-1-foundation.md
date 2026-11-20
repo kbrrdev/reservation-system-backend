@@ -339,7 +339,7 @@ git commit -m "feat: ProblemDetail error model, JWT resource server security"
   - `AuthService.register(RegisterRequest req) -> User`.
   - `POST /api/auth/register` → `201` + `UserResponse`.
 
-- [ ] **Step 1: Write the failing tests** (`@IntegrationTest`, `RegisterTest`)
+- [x] **Step 1: Write the failing tests** (`@IntegrationTest`, `RegisterTest`)
 
 ```java
 @Test void registersCustomer() { /* POST {email:"a@x.test", password:"password1", name:"A"} → 201,
@@ -356,11 +356,11 @@ git commit -m "feat: ProblemDetail error model, JWT resource server security"
    statuses sorted == [201, 409], and only one row in users */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./mvnw test -Dtest=RegisterTest` → Expected: compilation failure / 401 (no endpoint yet).
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 ```sql
 -- V1__create_users.sql
@@ -378,23 +378,30 @@ create table user_roles (
 );
 ```
 
-- [ ] **Step 4: Implement `Role`, `User`, `UserRepository`, `UserResponse`, `RegisterRequest`, `AuthService.register`, `AuthController`**
+- [x] **Step 4: Implement `Role`, `User`, `UserRepository`, `UserResponse`, `RegisterRequest`, `AuthService.register`, `AuthController`**
 
 `register`: normalize email; reject password > 72 UTF-8 bytes with `ApiException(VALIDATION_FAILED, "password must be at most 72 bytes")`;
 `existsByEmail` → `EMAIL_TAKEN`; roles `{CUSTOMER}` plus `ORGANIZER` if requested; `createdAt = Instant.now(clock)`;
 `saveAndFlush`, catching `DataIntegrityViolationException` → `EMAIL_TAKEN` (the concurrent case).
 Controller: `@Valid @RequestBody`, returns `ResponseEntity.status(CREATED).body(UserResponse.from(user))`.
 
-- [ ] **Step 5: Run to verify they pass**
+- [x] **Step 5: Run to verify they pass**
 
 Run: `./mvnw test -Dtest=RegisterTest` → Expected: `Tests run: 9, Failures: 0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src
 git commit -m "feat: users table and registration"
 ```
+
+**Done notes (Task 3):**
+- Commit: 44b8493 (`feat: users table and registration`). Tests: 23 total (register 9, security 8, handler 5, context 1), passing.
+- Deviations: `RegisterRequest` has a compact constructor that strips `email`, because `@Email` rejects surrounding whitespace and the planned `"  Alice@Example.COM "` test could never reach 201 otherwise. Entity getter is `getPasswordHash()` (plan comment said `passwordHash()`).
+- Gotchas: `AuthService.register` is deliberately NOT `@Transactional` so the unique-index violation from `saveAndFlush` is catchable (outer transaction would throw at commit). The 72-byte check counts UTF-8 bytes in the service (BCrypt would silently truncate). `@ElementCollection` needs an explicit `joinColumns = @JoinColumn(name = "user_id")` since the table is `user_roles`; `roles` is an `EnumSet` (copy of the ctor arg). `@GeneratedValue(UUID)` ids are assigned at persist time. All integration tests share one Postgres container and DB, so tests must use unique emails (`UUID + "@x.test"`). The duplicate-key attempt logs one Hibernate WARN in the concurrency test (expected).
+- Interfaces: as planned; `AuthService` and `AuthController` are package-private (`auth`), `User`, `Role`, `UserRepository`, `UserResponse` public.
+- Open questions: none.
 
 ---
 
