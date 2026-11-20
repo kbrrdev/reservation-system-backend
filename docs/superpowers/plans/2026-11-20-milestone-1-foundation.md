@@ -425,7 +425,7 @@ git commit -m "feat: users table and registration"
   - `GET /api/me` → `UserResponse`; `POST /api/me/organizer` → `UserResponse`. Current user id = `UUID.fromString(jwt.getSubject())`
     from `@AuthenticationPrincipal Jwt jwt`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `LoginTest`:
 ```java
@@ -444,11 +444,11 @@ git commit -m "feat: users table and registration"
 @Test void meForDeletedUser() { /* valid token whose sub matches no user → 404, $.code == "NOT_FOUND" */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./mvnw test -Dtest='LoginTest,MeTest'` → Expected: compilation failure.
 
-- [ ] **Step 3: Implement `JwtService`, login, `UserService`, `MeController`**
+- [x] **Step 3: Implement `JwtService`, login, `UserService`, `MeController`**
 
 `login`: normalize email, look up user; to keep timing equal for unknown emails, call
 `passwordEncoder.matches(raw, dummyHash)` when the user is missing (`dummyHash` = `passwordEncoder.encode(...)` of a
@@ -457,16 +457,23 @@ random string, computed once in the `AuthService` constructor); on mismatch eith
 `JwtService.issue`: `JwtClaimsSet` with `issuer("ticketing")`, `subject(id)`, `issuedAt(now)`, `expiresAt(now + ttl)`,
 claims `email`, `roles`; `JwsHeader.with(MacAlgorithm.HS256)`.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `./mvnw test` → Expected: `BUILD SUCCESS`, all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src
 git commit -m "feat: login with JWT, /api/me and become-organizer"
 ```
+
+**Done notes (Task 4):**
+- Commit: 893247c (`feat: login with JWT, /api/me and become-organizer`). Tests: 30 total (login 4, me 3, register 9, security 8, handler 5, context 1), passing.
+- Deviations: none. RED was behavioral (tests use only JSON strings, so no compile failure): all login/me tests failed before implementation.
+- Gotchas: Jackson 3 fails on a missing primitive, so register bodies in tests must include `"organizer":false`. `UserService.addOrganizerRole` relies on dirty checking of the managed entity; response reflects persisted roles. JWT `roles` claim is a sorted list of names.
+- Interfaces: as planned; `AuthService`, `JwtService`, `IssuedToken`, `LoginRequest`, `TokenResponse` and `MeController` are package-private; `UserService` is public with a package-private constructor.
+- Open questions: none.
 
 ---
 
