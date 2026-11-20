@@ -219,7 +219,7 @@ create unique index tickets_one_live_per_seat on tickets (event_seat_id)
   - `ticketing.countries.PH.payment-provider: fake`
   - Remove `fake-payments.enabled`.
 
-- [ ] **Step 1: Write the failing tests** (`PaymentGatewaysTest`, plain unit tests, no Spring)
+- [x] **Step 1: Write the failing tests** (`PaymentGatewaysTest`, plain unit tests, no Spring)
 
 ```java
 @Test void routesByProvider() { /* gateways [fake("a"), fake("b")], country PH→"a" → get("a") is the first; find("zz") empty */ }
@@ -229,16 +229,24 @@ create unique index tickets_one_live_per_seat on tickets (event_seat_id)
 ```
 Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other methods throw).
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=PaymentGatewaysTest`.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=PaymentGatewaysTest`.
+- [x] **Step 3: Implement.**
   - Write the migration, the records, the entity fields, the registry, the fake gateway and the config above.
   - The existing suite must still boot:
     - the test profile now resolves PH, JP and US to `fake`;
     - `PaymongoGateway` doesn't exist yet, so nothing references `paymongo` in the test profile.
   - Dev profile: PH → `fake` by default.
   - `FakePaymentController` is still present until Task 3; leave it.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: payment gateway contract, provider registry, fake gateway, payments schema"`
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: payment gateway contract, provider registry, fake gateway, payments schema"`
+
+**Done notes (Task 1):** commit a1630fe; suite 138 tests green (4 new `PaymentGatewaysTest`; context boot validates the V9 schema against the entities).
+- Deviation: `fake-payments.enabled: true` KEPT in application-dev.yml and application-test.yml (not removed) because `FakePaymentController` and the M2/M3 confirm tests still need it. Task 3 removes the controller and these two keys. The other old keys are gone.
+- Test yml sets `PH: {payment-provider: fake}` only; Spring merges it with the main PH entry (currency, min charge stay).
+- Ruling R1: without dev/test profile the app does not start (PH to paymongo has no gateway until Task 6). Intended.
+- `Booking.markRefundHandled()` and the new getters are package-private like the rest of `Booking`. `PaymentEvent`, `FakePaymentGateway` accessors are public.
+- `FakePaymentGateway` JSON via a static Jackson 3 `JsonMapper`; webhook secret compared in constant time, blank secret rejects.
+- RED step was not run separately: the test file and implementation were written together.
 
 ---
 
