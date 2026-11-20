@@ -307,7 +307,7 @@ create index event_seats_booking on event_seats (booking_id) where booking_id is
     EventSeatStatus status, UUID ticketTypeId)`.
   - Implementation note: put `// shortcut: returns every seat at once; split per section before using 10k+ seat layouts.` on `findSeatMap`.
 
-- [ ] **Step 1: Write the failing tests** (`SeatMapTest`, no token)
+- [x] **Step 1: Write the failing tests** (`SeatMapTest`, no token)
 
 ```java
 @Test void reservedSeatMap() { /* reserved event (Orchestra A,B × 3 → Premium 250000; Balcony C × 2 → Standard 120000) →
@@ -317,10 +317,17 @@ create index event_seats_booking on event_seats (booking_id) where booking_id is
 @Test void gaAvailabilityUnchanged() { /* GA event → $.seatingMode "GA", sections [], remaining as before */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=SeatMapTest`.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (check M2's `PublicEventTest` availability assertions).
-- [ ] **Step 5: Commit** — `git commit -m "feat: reserved seat-map availability"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=SeatMapTest`.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (check M2's `PublicEventTest` availability assertions).
+- [x] **Step 5: Commit** — `git commit -m "feat: reserved seat-map availability"`
+
+**Done notes (Task 3):**
+- Commit: see `git log` (feat: reserved seat-map availability). Tests: 119 total (3 new in `SeatMapTest`), all green; M2 availability assertions untouched and passing.
+- Deviations: none. Added a `TestFixtures.reservedEvent` overload taking a `Map<String, Long>` price per type name; the original delegates to it.
+- Gotchas: `availability` groups rows by section in one pass (rows already ordered by section name, row index, number); GA path unchanged apart from the two new fields. `SeatMapRow` is a public record for Task 5.
+- Open questions: none.
+
 
 ---
 

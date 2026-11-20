@@ -15,11 +15,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -209,9 +211,27 @@ public class EventService {
 	@Transactional(readOnly = true)
 	AvailabilityResponse availability(UUID id) {
 		Event e = requireOnSale(id);
-		return new AvailabilityResponse(e.getId(), e.getTicketTypes().stream().map(t -> new AvailabilityResponse.Item(
-				t.getId(), t.getName(), new Money(t.getPriceMinor(), e.getCurrency()),
-				t.getCapacity() - t.getHeld() - t.getSold())).toList());
+		Function<TicketType, Money> price = t -> new Money(t.getPriceMinor(), e.getCurrency());
+		if (e.getSeatingMode() == SeatingMode.GA) {
+			return new AvailabilityResponse(e.getId(), SeatingMode.GA, e.getTicketTypes().stream()
+					.map(t -> new AvailabilityResponse.Item(t.getId(), t.getName(), price.apply(t),
+							t.getCapacity() - t.getHeld() - t.getSold())).toList(), List.of());
+		}
+		List<SeatMapRow> rows = eventSeats.findSeatMap(id);
+		Map<UUID, TicketType> types = e.getTicketTypes().stream().collect(Collectors.toMap(TicketType::getId,
+				Function.identity()));
+		Map<UUID, Long> available = rows.stream().filter(r -> r.status() == EventSeatStatus.AVAILABLE)
+				.collect(Collectors.groupingBy(SeatMapRow::ticketTypeId, Collectors.counting()));
+		// rows arrive ordered by section name, so LinkedHashMap keeps section order and seat order
+		List<AvailabilityResponse.Section> sectionViews = rows.stream().collect(Collectors.groupingBy(
+				SeatMapRow::sectionId, LinkedHashMap::new, Collectors.toList())).values().stream()
+				.map(rs -> new AvailabilityResponse.Section(rs.get(0).sectionId(), rs.get(0).sectionName(),
+						rs.get(0).ticketTypeId(), price.apply(types.get(rs.get(0).ticketTypeId())),
+						rs.stream().map(r -> new AvailabilityResponse.SeatView(r.eventSeatId(), r.rowLabel(),
+								r.seatNumber(), r.status())).toList())).toList();
+		return new AvailabilityResponse(e.getId(), SeatingMode.RESERVED, e.getTicketTypes().stream()
+				.map(t -> new AvailabilityResponse.Item(t.getId(), t.getName(), price.apply(t),
+						available.getOrDefault(t.getId(), 0L).intValue())).toList(), sectionViews);
 	}
 
 	private Event requireOnSale(UUID id) {

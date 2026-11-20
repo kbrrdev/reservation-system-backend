@@ -97,12 +97,19 @@ public class TestFixtures {
 	/** Reserved event, same schedule as {@link #gaEvent}; every ticket type gets {@code priceMinor}. */
 	public EventResponse reservedEvent(User organizer, VenueResponse venue,
 			Map<String, List<UUID>> sectionsByTypeName, long priceMinor) {
+		return reservedEvent(organizer, venue, sectionsByTypeName, Map.copyOf(sectionsByTypeName.keySet().stream()
+				.collect(java.util.stream.Collectors.toMap(k -> k, k -> priceMinor))));
+	}
+
+	/** As above with a price per ticket type name. */
+	public EventResponse reservedEvent(User organizer, VenueResponse venue,
+			Map<String, List<UUID>> sectionsByTypeName, Map<String, Long> priceByTypeName) {
 		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(venue.timeZone()))
 				.truncatedTo(ChronoUnit.MINUTES);
 		return events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Event " + UUID.randomUUID(), null,
 				EventCategory.CONCERT, now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
 				sectionsByTypeName.entrySet().stream()
-						.map(e -> new TicketTypeRequest(e.getKey(), priceMinor, null, e.getValue())).toList(),
+						.map(e -> new TicketTypeRequest(e.getKey(), priceByTypeName.get(e.getKey()), null, e.getValue())).toList(),
 				SeatingMode.RESERVED));
 	}
 
