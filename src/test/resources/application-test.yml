@@ -1,3 +1,6 @@
 ticketing:
   jwt:
     secret: test-secret-test-secret-test-secret-0123456789
+  countries:
+    JP: {enabled: true, currency: JPY, payment-provider: fake, min-charge-minor: 50}
+    US: {enabled: false, currency: USD, payment-provider: fake, min-charge-minor: 50}

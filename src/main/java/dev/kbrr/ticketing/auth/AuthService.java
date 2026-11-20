@@ -47,7 +47,7 @@ class AuthService {
 	User register(RegisterRequest req) {
 		// BCrypt silently ignores bytes past 72, so reject instead of truncating.
 		if (req.password().getBytes(StandardCharsets.UTF_8).length > 72) {
-			throw new ApiException(ErrorCode.VALIDATION_FAILED, "password must be at most 72 bytes");
+			throw ApiException.fieldError("password", "must be at most 72 bytes");
 		}
 		String email = User.normalizeEmail(req.email());
 		if (users.existsByEmail(email)) {

@@ -13,3 +13,9 @@ ticketing:
   jwt:
     secret: ${JWT_SECRET:}
     ttl: PT1H
+  countries:
+    PH:
+      enabled: true
+      currency: PHP
+      payment-provider: paymongo
+      min-charge-minor: 2000

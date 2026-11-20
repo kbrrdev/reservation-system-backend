@@ -115,7 +115,7 @@ src/test/java/dev/kbrr/ticketing/
   - `GET /api/countries` (public) → `List<CountryResponse>`, enabled countries only, sorted by code.
     `record CountryResponse(String code, String currency, int currencyFractionDigits, long minChargeMinor)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 // GlobalExceptionHandlerTest: add probe GET /probe/field-error → throws ApiException.fieldError("startsAt", "does not exist in zone")
@@ -132,9 +132,9 @@ src/test/java/dev/kbrr/ticketing/
 @Test void invalidCurrencyFailsFast() { /* new CountryProperties.Country(true, "XXY", "x", 1) throws IllegalArgumentException */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='GlobalExceptionHandlerTest,CountryTest'` → compilation failure.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='GlobalExceptionHandlerTest,CountryTest'` → compilation failure.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - Handler: `handleApi` copies `e.properties()` onto the `ProblemDetail`.
 - `application.yml`: add the PH entry from Global Constraints under `ticketing.countries`.
@@ -143,9 +143,16 @@ src/test/java/dev/kbrr/ticketing/
   `US: {enabled: false, currency: USD, payment-provider: fake, min-charge-minor: 50}`.
 - `SecurityConfig`: `permitAll` for `GET /api/countries`.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (M1's 37 + 4 new).
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS` (M1's 37 + 4 new).
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: country config, countries endpoint, field errors on ApiException"`
+- [x] **Step 5: Commit** — `git commit -m "feat: country config, countries endpoint, field errors on ApiException"`
+
+**Done notes (Task 1):**
+- Tests: 41 pass (37 + 4 new). Commit: see `git log` (feat: country config, countries endpoint, field errors on ApiException).
+- No deviations. `CountryProperties` binds prefix `ticketing` with only `countries`; jwt/dev-seed keys are ignored. Null map is normalized to empty; map is copied immutably.
+- Gotcha: `CountryController` and `CountryResponse` are package-private; `CountryProperties` and `Money` are public for use by later packages.
+- `AuthService` 72-byte check now yields `errors[0].field == "password"`, detail "Request validation failed".
+
 
 ---
 
