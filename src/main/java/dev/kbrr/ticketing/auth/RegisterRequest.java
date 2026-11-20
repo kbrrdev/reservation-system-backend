@@ -8,7 +8,7 @@ public record RegisterRequest(
 		@NotBlank @Email @Size(max = 254) String email,
 		@NotBlank @Size(min = 8) String password,
 		@NotBlank @Size(max = 100) String name,
-		boolean organizer) {
+		Boolean organizer) {
 
 	// @Email rejects surrounding whitespace; trim first so "  a@b.c " is accepted and normalized.
 	public RegisterRequest {

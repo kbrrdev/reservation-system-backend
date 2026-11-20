@@ -42,6 +42,13 @@ class RegisterTest {
 	}
 
 	@Test
+	void organizerFieldIsOptional() throws Exception {
+		mvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
+				.content("{\"email\":\"%s\",\"password\":\"password1\",\"name\":\"A\"}".formatted(unique())))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.roles", containsInAnyOrder("CUSTOMER")));
+	}
+
+	@Test
 	void registersCustomer() throws Exception {
 		register(unique(), "password1", false).andExpect(status().isCreated())
 				.andExpect(jsonPath("$.roles[0]").value("CUSTOMER")).andExpect(jsonPath("$.roles.length()").value(1))

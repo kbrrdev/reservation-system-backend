@@ -30,10 +30,11 @@ class LoginTest {
 	@Autowired JwtDecoder decoder;
 	@Autowired Clock clock;
 
-	private void register(String email) throws Exception {
-		mvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
-				.content("{\"email\":\"%s\",\"password\":\"password1\",\"name\":\"A\",\"organizer\":false}".formatted(email)))
-				.andExpect(status().isCreated());
+	private String register(String email) throws Exception {
+		String body = mvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
+				.content("{\"email\":\"%s\",\"password\":\"password1\",\"name\":\"A\"}".formatted(email)))
+				.andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+		return JsonPath.read(body, "$.id");
 	}
 
 	private ResultActions login(String email, String password) throws Exception {
@@ -75,12 +76,12 @@ class LoginTest {
 	@Test
 	void tokenCarriesRoles() throws Exception {
 		String email = UUID.randomUUID() + "@x.test";
-		register(email);
+		String id = register(email);
 		String body = login(email, "password1").andReturn().getResponse().getContentAsString();
 		Jwt jwt = decoder.decode(JsonPath.read(body, "$.accessToken"));
 		assertThat(jwt.getClaimAsStringList("roles")).isEqualTo(List.of("CUSTOMER"));
 		assertThat(jwt.getClaimAsString("email")).isEqualTo(email);
-		assertThat(jwt.getSubject()).matches("[0-9a-f-]{36}");
+		assertThat(jwt.getSubject()).isEqualTo(id);
 		assertThat(jwt.getClaimAsString("iss")).isEqualTo("ticketing");
 	}
 }

@@ -469,9 +469,9 @@ git commit -m "feat: login with JWT, /api/me and become-organizer"
 ```
 
 **Done notes (Task 4):**
-- Commit: 893247c (`feat: login with JWT, /api/me and become-organizer`). Tests: 30 total (login 4, me 3, register 9, security 8, handler 5, context 1), passing.
+- Commit: 893247c (`feat: login with JWT, /api/me and become-organizer`). Tests: 31 total (login 4, me 3, register 10, security 8, handler 5, context 1), passing.
 - Deviations: none. RED was behavioral (tests use only JSON strings, so no compile failure): all login/me tests failed before implementation.
-- Gotchas: Jackson 3 fails on a missing primitive, so register bodies in tests must include `"organizer":false`. `UserService.addOrganizerRole` relies on dirty checking of the managed entity; response reflects persisted roles. JWT `roles` claim is a sorted list of names.
+- Gotchas: Jackson 3 fails on a missing primitive, so `RegisterRequest.organizer` is now `Boolean` (optional; fixed in review, covered by `RegisterTest.organizerFieldIsOptional`). `UserService.addOrganizerRole` relies on dirty checking of the managed entity; response reflects persisted roles. JWT `roles` claim is a sorted list of names.
 - Interfaces: as planned; `AuthService`, `JwtService`, `IssuedToken`, `LoginRequest`, `TokenResponse` and `MeController` are package-private; `UserService` is public with a package-private constructor.
 - Open questions: none.
 

@@ -54,7 +54,7 @@ class AuthService {
 			throw emailTaken();
 		}
 		Set<Role> roles = EnumSet.of(Role.CUSTOMER);
-		if (req.organizer()) {
+		if (Boolean.TRUE.equals(req.organizer())) {
 			roles.add(Role.ORGANIZER);
 		}
 		User user = new User(email, encoder.encode(req.password()), req.name(), roles, Instant.now(clock));

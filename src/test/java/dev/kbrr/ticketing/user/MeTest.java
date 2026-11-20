@@ -35,7 +35,7 @@ class MeTest {
 
 	private String registerAndLogin(String email) throws Exception {
 		mvc.perform(post("/api/auth/register").contentType(APPLICATION_JSON)
-				.content("{\"email\":\"%s\",\"password\":\"password1\",\"name\":\"A\",\"organizer\":false}".formatted(email)))
+				.content("{\"email\":\"%s\",\"password\":\"password1\",\"name\":\"A\"}".formatted(email)))
 				.andExpect(status().isCreated());
 		return login(email);
 	}
