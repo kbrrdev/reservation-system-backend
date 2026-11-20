@@ -374,7 +374,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
     - `MockHttpServletResponse pay(UUID bookingId)`: a fresh event id, `"payment.paid"`, and the booking's total and currency read via JDBC.
     - `User admin()`.
 
-- [ ] **Step 1: Write the failing tests** (`WebhookTest`)
+- [x] **Step 1: Write the failing tests** (`WebhookTest`)
 
 ```java
 @Test void paidWebhookConfirms() { /* hold 2 GA → fixtures.pay(id) → 200; booking CONFIRMED, 2 tickets, held 0 sold 2;
@@ -396,15 +396,27 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
 @Test void noFakePayEndpoint() { /* POST /api/bookings/{id}/fake-pay → 404 */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=WebhookTest`.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=WebhookTest`.
+- [x] **Step 3: Implement.**
   - Delete `FakePaymentController` and `confirmFake`.
   - Rewrite the 6 `fake-pay` / `confirmFake` call sites in `ConfirmAndExpiryTest` and `ReservedConfirmAndExpiryTest`:
     - MockMvc tests use `fixtures.pay(id)`;
     - service-level race tests call `paymentConfirmationService.handle(notification)` with a `PaymentNotification` built in the test.
   - Their assertions stay the same.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: verified idempotent payment webhook confirms bookings; remove fake pay"`
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: verified idempotent payment webhook confirms bookings; remove fake pay"`
+
+**Done notes (Task 3):** commit 2b1408c; suite 154 tests green (12 new `WebhookTest`); the three confirm/webhook test classes ran green 2 extra times. RED: all 12 `WebhookTest` failed (401 from security, no endpoint, fake-pay still 200).
+- Lock SQL checked: `existsById` emits `select count(*)` (booking not loaded); then payment_events insert, `findOwnerAndEvent` projection, user `for no key update`, event `for share`, booking `for no key update`.
+- `findOwnerAndEvent` returns a nested interface projection `BookingRepository.OwnerAndEvent` (`getUserId`/`getEventId`), not a record: reliable across Spring Data versions.
+- `PaymentConfirmationService` re-reads the booking after `updateStatus` (which clears the context) and passes that to `inventory.sell`, like `cancel` does for `release`; `sell` reads items/seats before its own bulk updates. `expectOneRow` moved to `BookingInventory` as package-private static (used by the confirmation service too); `lockOrder` moved there as private.
+- All non-pending states flag refund (marked `shortcut:` in code for Task 4). Mismatch and non-pending both log at error.
+- Test migration deviations (the old assertions could not survive the endpoint change): `payOrCancelAfterExpiry` now expects the late webhook to return 200 and set `refund_required` (was 409); `othersCannotPayOrCancel` → `othersCannotCancelOrSeeTickets` (a webhook has no caller identity); both `payRaceWithExpiry` tests decide the pay side's win from the booking status after the race (handle never throws for a lost race) and additionally assert the refund flag when expiry wins. `fakePay*` tests renamed `pay*`; the GA one reads status/items via `GET /api/bookings/{id}` since the webhook body is empty.
+- `TestFixtures.webhook/pay` declare `throws Exception` (MockMvc). Constructor now also takes `MockMvc` and `JdbcTemplate`.
+- `ticketing.fake-payments.enabled` removed from dev/test yml (ruling R2). README still shows the fake-pay curl; Task 7 replaces it.
+- Gotcha for later tasks: `PaymentEvent` has an assigned id and no `@Version`, so `saveAndFlush` goes through `merge` and emits an extra `select` by id before the insert. Harmless (random UUID), but `Persistable`/`persist` would save a round trip.
+- Gotcha (by reading, untested): a signed but malformed fake payload (no `id`) fails the NOT NULL insert → `existsBy...(provider, null)` is false → 500, so the provider would retry it forever. Fine for the fake gateway; Task 6 may want to 400/200 unparseable events.
+- Open questions: none.
 
 ---
 
