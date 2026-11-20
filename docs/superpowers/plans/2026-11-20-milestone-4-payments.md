@@ -594,7 +594,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
   - `payments[0].attributes.amount`.
 - If they differ, only `PaymongoGateway` and the sample JSON change.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `PaymongoGatewayTest` (no Spring; `MockRestServiceServer.bindTo(builder)`; a fixed `Clock`):
 ```java
@@ -620,10 +620,18 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
 @Test void unsignedPaymongoWebhook401() { /* no header → 401 INVALID_SIGNATURE */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='PaymongoGatewayTest,PaymongoWebhookIT'`.
-- [ ] **Step 3: Implement.** `PaymentGateways` now also has `"paymongo"`. Main config keeps PH → `paymongo`; the test and dev profiles override it.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: PayMongo test-mode adapter (checkout sessions, signed webhooks)"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='PaymongoGatewayTest,PaymongoWebhookIT'`.
+- [x] **Step 3: Implement.** `PaymentGateways` now also has `"paymongo"`. Main config keeps PH → `paymongo`; the test and dev profiles override it.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: PayMongo test-mode adapter (checkout sessions, signed webhooks)"`
+
+**Done notes (Task 6):**
+- Commit: see git log (`feat: PayMongo test-mode adapter ...`). Full suite 181 tests green. RED step not run separately (tests and impl written together).
+- Ruling R4 done: `payment.MalformedWebhookException`, thrown by both gateways after signature check (bad JSON, missing id/type); controller maps it to 400 MALFORMED_REQUEST and logs at error, no DB write. Tests: PaymongoGatewayTest + WebhookTest.
+- Ruling R1 ends: main config PH -> paymongo now has a gateway (not run without a profile, only by the test context).
+- Deviations: (1) Added `spring-boot-starter-restclient` (Boot 4 has no RestClient.Builder bean without it). (2) No `Clock` constructor arg (no timestamp tolerance, so unused). (3) Timeouts are set globally via `spring.http.clients.connect-timeout/read-timeout` (5s/10s) instead of in code, because setting a request factory on the builder would override MockRestServiceServer.bindTo. (4) `PaymongoWebhookIT` is named `PaymongoWebhookTest` so Surefire runs it.
+- Gotcha: a blank webhook secret is rejected before any HMAC (an empty HMAC key throws IllegalArgumentException).
+- Open question for the human: PayMongo field names (checkout body, `checkout_url`, `Paymongo-Signature` format, `payments[0].attributes.amount`) were NOT verified against docs.paymongo.com; verify before the Task 7 manual test. Only PaymongoGateway and the sample JSON would change.
 
 ---
 

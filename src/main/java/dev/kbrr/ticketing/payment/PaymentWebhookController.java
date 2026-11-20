@@ -44,6 +44,10 @@ class PaymentWebhookController {
 			n = gateway.parseWebhook(body, headers);
 		} catch (InvalidSignatureException e) {
 			throw new ApiException(ErrorCode.INVALID_SIGNATURE, "Invalid webhook signature");
+		} catch (MalformedWebhookException e) {
+			// Signed but unusable: 400 so it is not retried forever, error log so a human sees it, nothing written.
+			log.error("malformed {} webhook: {}", provider, e.getMessage(), e);
+			throw new ApiException(ErrorCode.MALFORMED_REQUEST, "Malformed webhook payload");
 		}
 		try {
 			handler.handle(n);

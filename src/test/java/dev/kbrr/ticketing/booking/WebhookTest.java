@@ -160,6 +160,15 @@ class WebhookTest {
 	}
 
 	@Test
+	void signedWebhookWithoutEventId400WritesNothing() throws Exception {
+		long before = jdbc.queryForObject("select count(*) from payment_events", Long.class);
+		mvc.perform(post("/api/payments/webhook/fake").header("Fake-Signature", "test-fake-secret")
+				.contentType(APPLICATION_JSON).content("{\"type\":\"payment.paid\"}"))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+		assertThat(jdbc.queryForObject("select count(*) from payment_events", Long.class)).isEqualTo(before);
+	}
+
+	@Test
 	void unknownProvider404() throws Exception {
 		mvc.perform(post("/api/payments/webhook/stripe").contentType(APPLICATION_JSON).content("{}"))
 				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));

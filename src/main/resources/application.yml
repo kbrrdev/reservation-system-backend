@@ -12,6 +12,9 @@ spring:
       jdbc.batch_size: 100
       order_inserts: true
   mvc.problemdetails.enabled: true
+  http.clients:
+    connect-timeout: 5s
+    read-timeout: 10s
 ticketing:
   jwt:
     secret: ${JWT_SECRET:}

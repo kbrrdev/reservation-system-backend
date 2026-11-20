@@ -3,6 +3,7 @@ package dev.kbrr.ticketing.payment.fake;
 import dev.kbrr.ticketing.payment.Checkout;
 import dev.kbrr.ticketing.payment.CheckoutRequest;
 import dev.kbrr.ticketing.payment.InvalidSignatureException;
+import dev.kbrr.ticketing.payment.MalformedWebhookException;
 import dev.kbrr.ticketing.payment.PaymentGateway;
 import dev.kbrr.ticketing.payment.PaymentNotification;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -60,8 +62,16 @@ public class FakePaymentGateway implements PaymentGateway {
 				sig.getBytes(StandardCharsets.UTF_8), secret.getBytes(StandardCharsets.UTF_8))) {
 			throw new InvalidSignatureException("bad fake signature");
 		}
-		JsonNode n = JSON.readTree(body);
+		JsonNode n;
+		try {
+			n = JSON.readTree(body);
+		} catch (JacksonException e) {
+			throw new MalformedWebhookException("webhook body is not JSON", e);
+		}
 		String type = text(n, "type");
+		if (text(n, "id") == null || type == null) {
+			throw new MalformedWebhookException("webhook lacks id or type");
+		}
 		Long amount = n.hasNonNull("amountMinor") && n.get("amountMinor").canConvertToLong()
 				? n.get("amountMinor").asLong() : null;
 		return new PaymentNotification("fake", text(n, "id"), type, "payment.paid".equals(type),
