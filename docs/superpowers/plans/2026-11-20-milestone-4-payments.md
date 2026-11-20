@@ -454,7 +454,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
        - `cancelledAt` / `cancelledBy` stay as history.
     4. **`CONFIRMED`** → `flagRefund` (double payment).
 
-- [ ] **Step 1: Write the failing tests** (`LatePaymentTest`)
+- [x] **Step 1: Write the failing tests** (`LatePaymentTest`)
 
 ```java
 @Test void latePaymentReclaimsGa() { /* hold 2, advance past expiry, expiryJob.run() → EXPIRED; pay → CONFIRMED, 2 tickets,
@@ -471,10 +471,18 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
    refund true, inventory released, no tickets, response 200 */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=LatePaymentTest`.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: late payments re-claim or flag refund; double payments and cancelled events flag refund"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=LatePaymentTest`.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: late payments re-claim or flag refund; double payments and cancelled events flag refund"`
+
+**Done notes (Task 4):** commit db5e5f3; suite 163 tests green (9 new `LatePaymentTest`); the three confirm/late test classes ran green 1 extra time. RED: 5 of the 9 failed (the reclaim and cancelled-event cases; the refund-only cases already passed on the Task 3 shortcut).
+- Lock SQL checked: `TicketTypeRepository.findForUpdateById` emits `... from ticket_types tt1_0 where tt1_0.id=? for no key update of tt1_0`. All ticket types are locked and checked before the first `hold` (which clears the context).
+- The event check uses the `Event` returned by `findForShareById`. Order after the mismatch check: event CANCELLED, then a switch on the locked booking status.
+- Deviations: (1) the event-cancelled branch also calls `markCancelled(now, null)` on a pending booking, like `cancelAfterCheckoutFailure`, so every CANCELLED booking has `cancelledAt`. (2) Extra test `latePaymentAfterEventEndedFlagsRefund` covers the `now < endsAt` check (JDBC moves the schedule into the past). (3) `BookingRepository` needed no change: `countActiveTickets` already excludes the EXPIRED/CANCELLED booking itself. (4) `BookingInventory` now also takes `EventSeatRepository`. Reclaim reuses `SeatInventory.hold` for the markHeld count check; it does not use `lockForHold`, whose 404 `ApiException` must not reach a webhook.
+- Test migration: both `payRaceWithExpiry` tests can no longer say "exactly one side wins". A payment after the expiry now re-claims the free inventory, so either order ends CONFIRMED with refund false, held 0 and one sale. They now assert just that. `payOrCancelAfterExpiry` expects the late payment to confirm (sold 2, 2 tickets, refund false), then the cancel to get 409.
+- Gotcha for Task 7: `webhookVsExpiryNeverLosesPayment` matches what the updated race tests already check. `latePaymentVsRebookNeverExceedsLimit` relies on the user lock, which `handle` takes first.
+- Open questions: none.
 
 ---
 
