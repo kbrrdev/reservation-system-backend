@@ -68,8 +68,8 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 	@Query("""
 			select b.id from Booking b
 			where b.status = dev.kbrr.ticketing.booking.BookingStatus.PENDING_PAYMENT and b.expiresAt < :now
-			order by b.expiresAt""")
-	List<UUID> findExpiredPendingIds(Instant now, Pageable limit);
+			order by b.expiresAt, b.id limit :limit offset :offset""")
+	List<UUID> findExpiredPendingIds(Instant now, int offset, int limit);
 
 	Page<Booking> findByRefundRequiredTrueOrderByCreatedAtDesc(Pageable pageable);
 

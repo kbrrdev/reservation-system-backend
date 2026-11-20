@@ -2,6 +2,7 @@ package dev.kbrr.ticketing.booking;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,6 +15,8 @@ import dev.kbrr.ticketing.IntegrationTest;
 import dev.kbrr.ticketing.MutableClock;
 import dev.kbrr.ticketing.TestFixtures;
 import dev.kbrr.ticketing.event.EventResponse;
+import dev.kbrr.ticketing.event.EventSeatRepository;
+import dev.kbrr.ticketing.event.SeatMapRow;
 import dev.kbrr.ticketing.event.TicketType;
 import dev.kbrr.ticketing.event.TicketTypeRepository;
 import dev.kbrr.ticketing.payment.PaymentNotification;
@@ -26,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -55,6 +60,8 @@ class ConfirmAndExpiryTest {
 	@Autowired TicketTypeRepository ticketTypes;
 	@Autowired ExpiryJob expiryJob;
 	@Autowired PlatformTransactionManager txManager;
+	@Autowired EventSeatRepository eventSeats;
+	@Autowired JdbcTemplate jdbc;
 
 	private EventResponse event(int capacity, int maxTickets) {
 		User org = fx.organizer();
@@ -316,6 +323,35 @@ class ConfirmAndExpiryTest {
 			}
 		} finally {
 			pool.shutdownNow();
+		}
+	}
+
+	/**
+	 * A booking whose release keeps failing stays first in expiry order; with batch size 1 the old job fetched it
+	 * again and again. The job must step over it, expire the rest, and still return.
+	 */
+	@Test
+	void expiryJobSkipsFailingBookings() {
+		User org = fx.organizer();
+		VenueResponse v = fx.venue(org, "PH", "Asia/Manila");
+		UUID section = fx.section(org, v, "Main", List.of("A"), 4).id();
+		EventResponse e = fx.reservedEvent(org, v, Map.of("Std", List.of(section)), 100000);
+		List<UUID> seats = eventSeats.findSeatMap(e.id()).stream().map(SeatMapRow::eventSeatId).toList();
+		UUID poisoned = bookings.hold(fx.customer().getId(), new HoldRequest(e.id(), null, List.of(seats.get(0)))).id();
+		clock.advance(Duration.ofSeconds(1));
+		UUID later = bookings.hold(fx.customer().getId(), new HoldRequest(e.id(), null, List.of(seats.get(1)))).id();
+		clock.advance(PAST_EXPIRY);
+		jdbc.update("update event_seats set status = 'AVAILABLE', booking_id = null where id = ?", seats.get(0));
+		try {
+			ExpiryJob job = new ExpiryJob(bookingRepository, bookings, clock, 1);
+			assertTimeoutPreemptively(Duration.ofSeconds(10), job::run);
+
+			assertThat(statusOf(later)).isEqualTo(BookingStatus.EXPIRED);
+			assertThat(statusOf(poisoned)).isEqualTo(BookingStatus.PENDING_PAYMENT);
+		} finally {
+			// Undo the poison and expire it, so later expiry runs in the shared database don't keep logging it.
+			jdbc.update("update event_seats set status = 'HELD', booking_id = ? where id = ?", poisoned, seats.get(0));
+			bookings.expire(poisoned);
 		}
 	}
 }

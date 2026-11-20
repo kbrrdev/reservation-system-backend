@@ -41,3 +41,4 @@ ticketing:
     default-max-tickets-per-customer: 8
     platform-max-tickets-per-customer: 50
     expiry-interval: PT30S
+    expiry-batch-size: 100

@@ -9,14 +9,14 @@ that never oversell a seat, verified payment webhooks, and Testcontainers-backed
 
 ## Status
 
-🚧 **Milestones 1–3 done; milestone 4 next.** Built in milestones; each one is a working, tested slice.
+🚧 **Milestones 1–4 done; milestone 5 next.** Built in milestones; each one is a working, tested slice.
 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Project skeleton, Postgres, Flyway, users + JWT auth | ✅ Done |
 | 2 | Countries, venues, events, general-admission holds | ✅ Done |
 | 3 | Reserved seating | ✅ Done |
-| 4 | Payments (PayMongo test mode) | — |
+| 4 | Payments (PayMongo test mode) | ✅ Done |
 | 5 | Organizer / admin approval, cancel, check-in | — |
 | 6 | Free tickets and comps | — |
 | 7 | Redis waiting room | — |
@@ -63,18 +63,26 @@ and Balcony sections).
 
 ### Try it
 
-Replace `$TOKEN`, `$EVENT`, `$REGULAR`, `$BOOKING`, `$PLAY`, `$SEAT1` and `$SEAT2` with the values from the previous responses.
+Replace `$TOKEN`, `$EVENT`, `$REGULAR`, `$BOOKING`, `$TOTAL`, `$PLAY`, `$SEAT1` and `$SEAT2` with the values from the previous responses.
 
 1. Log in: `curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"email":"customer@example.test","password":"devpassword123"}'` and copy `accessToken` into `$TOKEN`.
 2. List events: `curl -s 'localhost:8080/api/events?country=PH'` (copy the event `id` and the Regular ticket type `id`).
 3. Availability: `curl -s localhost:8080/api/events/$EVENT/availability` (Regular `remaining` is 500).
-4. Hold 2 tickets: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$EVENT'","items":[{"ticketTypeId":"'$REGULAR'","quantity":2}]}'` (status `PENDING_PAYMENT`; unpaid holds expire after 10 minutes).
-5. Fake payment (dev only): `curl -s -X POST localhost:8080/api/bookings/$BOOKING/fake-pay -H "Authorization: Bearer $TOKEN"` (status `CONFIRMED`).
+4. Hold 2 tickets: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$EVENT'","items":[{"ticketTypeId":"'$REGULAR'","quantity":2}]}'` (status `PENDING_PAYMENT`, a `checkoutUrl`; unpaid holds expire after 10 minutes). Copy `id` into `$BOOKING` and `total.amountMinor` into `$TOTAL`.
+5. Pay: in dev the payment provider is a fake, so send the webhook it would send yourself: `curl -s -i -X POST localhost:8080/api/payments/webhook/fake -H 'Fake-Signature: dev-fake-secret' -H 'Content-Type: application/json' -d '{"id":"evt_1","type":"payment.paid","bookingId":"'$BOOKING'","amountMinor":'$TOTAL',"currency":"PHP"}'` (`200`; the booking is now `CONFIRMED`). Sending it again is a no-op (`200`); a wrong signature gets `401`.
 6. Ticket codes: `curl -s localhost:8080/api/bookings/$BOOKING/tickets -H "Authorization: Bearer $TOKEN"` (2 codes).
 7. Availability again: Regular `remaining` is now 498.
 
 Reserved seating: the same flow with "Sample Play". Its availability response lists every seat with an `eventSeatId` (copy two into `$SEAT1` / `$SEAT2`, and the event `id` into `$PLAY`); hold seats by
 sending those ids instead of ticket types: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$PLAY'","eventSeatIds":["'$SEAT1'","'$SEAT2'"]}'`.
-Fake-pay it, and the tickets carry `section` / `row` / `number`; those seats show as `SOLD` in availability.
+Pay it with the webhook, and the tickets carry `section` / `row` / `number`; those seats show as `SOLD` in availability.
+
+Admin (log in as `admin@example.test`): `GET /api/admin/bookings?refundRequired=true` lists paid bookings that need a manual refund (late or double payments), `POST /api/admin/bookings/{id}/refund-handled` with `{"version":N}` clears one; `GET /api/admin/payments/unmatched` and `POST /api/admin/payments/{id}/refund-handled` do the same for payments that matched no booking.
+
+### PayMongo test mode
+
+1. In `.env` set `PAYMONGO_SECRET_KEY` (a `sk_test_…` key), `PAYMONGO_WEBHOOK_SECRET` and `PH_PAYMENT_PROVIDER=paymongo`, then restart the app.
+2. Expose the app with a tunnel (e.g. `ngrok http 8080`) and, in the PayMongo dashboard, register a webhook to `https://<tunnel>/api/payments/webhook/paymongo` for `checkout_session.payment.paid`. Its signing secret is `PAYMONGO_WEBHOOK_SECRET`.
+3. Hold tickets as above and open the returned `checkoutUrl`; pay with a test method. The webhook confirms the booking.
 
 Run the tests (needs Docker, for Testcontainers): `./mvnw test`
