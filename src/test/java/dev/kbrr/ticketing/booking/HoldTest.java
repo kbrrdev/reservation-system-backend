@@ -80,7 +80,7 @@ class HoldTest {
 				.andExpect(jsonPath("$.items[0].quantity").value(2))
 				.andExpect(jsonPath("$.items[0].unitPrice.amountMinor").value(150000))
 				.andExpect(jsonPath("$.expiresAt").value(clock.instant().plus(Duration.ofMinutes(10)).toString()))
-				.andExpect(jsonPath("$.checkoutUrl").doesNotExist());
+				.andExpect(jsonPath("$.checkoutUrl").value(org.hamcrest.Matchers.startsWith("https://checkout.fake.test/")));
 		remaining(e, 8);
 	}
 

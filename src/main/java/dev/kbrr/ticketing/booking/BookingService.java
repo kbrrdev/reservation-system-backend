@@ -13,6 +13,8 @@ import dev.kbrr.ticketing.event.SeatMapRow;
 import dev.kbrr.ticketing.event.SeatingMode;
 import dev.kbrr.ticketing.event.TicketType;
 import dev.kbrr.ticketing.event.TicketTypeRepository;
+import dev.kbrr.ticketing.payment.CheckoutExpiryRequested;
+import dev.kbrr.ticketing.payment.CheckoutRequest;
 import dev.kbrr.ticketing.user.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,6 +31,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -48,10 +51,12 @@ class BookingService {
 	private final SeatInventory seatInventory;
 	private final EventSeatRepository eventSeats;
 	private final Clock clock;
+	private final ApplicationEventPublisher publisher;
 
 	BookingService(UserRepository users, EventRepository events, TicketTypeRepository ticketTypes,
 			BookingRepository bookings, TicketRepository tickets, CountryProperties countries,
-			BookingProperties props, SeatInventory seatInventory, EventSeatRepository eventSeats, Clock clock) {
+			BookingProperties props, SeatInventory seatInventory, EventSeatRepository eventSeats, Clock clock,
+			ApplicationEventPublisher publisher) {
 		this.users = users;
 		this.events = events;
 		this.ticketTypes = ticketTypes;
@@ -62,6 +67,7 @@ class BookingService {
 		this.countries = countries;
 		this.props = props;
 		this.clock = clock;
+		this.publisher = publisher;
 	}
 
 	/**
@@ -250,7 +256,44 @@ class BookingService {
 		release(bookings.findById(id).orElseThrow());
 		Booking booking = bookings.findById(id).orElseThrow();
 		booking.markCancelled(clock.instant(), userId);
+		requestCheckoutExpiry(booking);
 		return BookingResponse.from(booking);
+	}
+
+	record CheckoutData(String provider, CheckoutRequest request) {
+	}
+
+	@Transactional(readOnly = true)
+	CheckoutData checkoutData(UUID bookingId) {
+		Booking b = bookings.findById(bookingId).orElseThrow();
+		String title = events.findById(b.getEventId()).orElseThrow().getTitle();
+		return new CheckoutData(b.getPaymentProvider(),
+				new CheckoutRequest(b.getId(), b.getTotalMinor(), b.getCurrency(), "Tickets for " + title));
+	}
+
+	@Transactional
+	void attachCheckout(UUID id, String sessionId, String checkoutUrl) {
+		bookings.setCheckout(id, sessionId, checkoutUrl); // 0 rows is fine: the booking may be cancelled meanwhile
+	}
+
+	/** The provider call failed before any session existed, so nothing to expire. Lock order as in cancel. */
+	@Transactional
+	void cancelAfterCheckoutFailure(UUID id) {
+		UUID userId = bookings.findById(id).orElseThrow().getUserId();
+		users.findForUpdateById(userId).orElseThrow();
+		bookings.findForUpdateById(id).orElseThrow();
+		if (bookings.updateStatus(id, BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED) == 0) {
+			return; // paid or expired in the meantime: nothing to undo
+		}
+		release(bookings.findById(id).orElseThrow());
+		bookings.findById(id).orElseThrow().markCancelled(clock.instant(), null);
+	}
+
+	/** Published inside the transaction; the listener acts only after commit, so a rollback calls no provider. */
+	private void requestCheckoutExpiry(Booking b) {
+		if (b.getPaymentReference() != null) {
+			publisher.publishEvent(new CheckoutExpiryRequested(b.getPaymentProvider(), b.getPaymentReference()));
+		}
 	}
 
 	/**
@@ -263,7 +306,9 @@ class BookingService {
 		if (bookings.updateStatus(id, BookingStatus.PENDING_PAYMENT, BookingStatus.EXPIRED) == 0) {
 			return false;
 		}
-		release(bookings.findById(id).orElseThrow());
+		Booking booking = bookings.findById(id).orElseThrow();
+		release(booking);
+		requestCheckoutExpiry(booking);
 		return true;
 	}
 

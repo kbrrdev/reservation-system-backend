@@ -21,6 +21,12 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 			where b.id = :id and b.status = :expected""")
 	int updateStatus(UUID id, BookingStatus expected, BookingStatus next);
 
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("""
+			update Booking b set b.paymentReference = :ref, b.checkoutUrl = :url, b.version = b.version + 1
+			where b.id = :id""")
+	int setCheckout(UUID id, String ref, String url);
+
 	/** Tickets counting towards the per-customer limit: pending and confirmed purchases. */
 	@Query("""
 			select coalesce(sum(i.quantity), 0L) from BookingItem i
