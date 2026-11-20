@@ -446,7 +446,7 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
     - Reserved confirm issues one `Ticket` per seat with its `ticketTypeId` and `eventSeatId`. The `EventSeat` rows must be read
       (inside `confirm`, after locking) before `markSold` clears the persistence context.
 
-- [ ] **Step 1: Write the failing tests** (`ReservedConfirmAndExpiryTest`)
+- [x] **Step 1: Write the failing tests** (`ReservedConfirmAndExpiryTest`)
 
 ```java
 @Test void fakePayConfirmsSeatsAndIssuesSeatTickets() { /* hold 2 seats → fake-pay → CONFIRMED; both seats SOLD with booking id;
@@ -462,10 +462,18 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
    finally every seat is AVAILABLE or HELD by exactly one PENDING_PAYMENT booking; X is EXPIRED */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ReservedConfirmAndExpiryTest`.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`. Run `ReservedConfirmAndExpiryTest` and `SeatConcurrencyTest` 3 times each.
-- [ ] **Step 5: Commit** — `git commit -m "feat: confirm, cancel and expire reserved seat bookings"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ReservedConfirmAndExpiryTest`.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`. Run `ReservedConfirmAndExpiryTest` and `SeatConcurrencyTest` 3 times each.
+- [x] **Step 5: Commit** — `git commit -m "feat: confirm, cancel and expire reserved seat bookings"`
+
+**Done notes (Task 5):**
+- Commit: `ebadb97` (feat: confirm, cancel and expire reserved seat bookings). Tests: 134 pass (128 + 6 ReservedConfirmAndExpiryTest). ReservedConfirmAndExpiryTest and SeatConcurrencyTest each ran green 3 extra times. RED run: 5 failures + 1 error, all from the GA counter path throwing `IllegalStateException` on reserved bookings (the gap Task 4's review found).
+- Deviations: `SeatInventory.confirm` returns the locked `List<EventSeat>` (the brief left the return type open) and also checks the locked row count equals `expected`, besides the `markSold`/`markAvailable` count. `cancel` and `expire` now share one `release(Booking)` that re-reads the booking after the status update and branches on `findSeatingModeById`. `BookingService` also injects `EventSeatRepository` for `findSeatLabels` (read-only, not through `SeatInventory`, which owns writes).
+- ExpiryJob isolation checked by reading, not changed: the job is not transactional, each `service.expire(id)` goes through the proxy in its own transaction, and a `RuntimeException` is logged and the loop continues.
+- Gotchas: `Booking.eventSeatIds` must be sized before `updateStatus` / any seat bulk update clears the context (lazy collection). `findSeatLabels` is skipped when there are no seat tickets (GA). `TicketResponse` seat fields are null for GA.
+- Interface: `Ticket` 5-arg constructor + `getEventSeatId`; `TicketResponse` gains `eventSeatId, section, row, number`; `EventSeatRepository.findSeatLabels(Collection<UUID>)`.
+- Open questions: none.
 
 ---
 
