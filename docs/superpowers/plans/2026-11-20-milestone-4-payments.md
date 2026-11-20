@@ -516,7 +516,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
   - **Clear an unmatched payment:** `POST /api/admin/payments/{id}/refund-handled` → `markRefundHandled`. 1 row → `204`;
     0 rows → `409 REFUND_ALREADY_HANDLED` if the row exists, else `404`.
 
-- [ ] **Step 1: Write the failing tests** (`AdminRefundTest`)
+- [x] **Step 1: Write the failing tests** (`AdminRefundTest`)
 
 ```java
 @Test void listsAndClearsRefundFlag() { /* double payment → GET as admin lists it with version v;
@@ -528,10 +528,16 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
 @Test void nonAdmin403() { /* customer and organizer tokens → 403 on all four */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=AdminRefundTest`.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: admin refund-required and unmatched-payment endpoints"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=AdminRefundTest`.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: admin refund-required and unmatched-payment endpoints"`
+
+**Done notes (Task 5):** commit 3685e69; suite 169 tests green (6 new `AdminRefundTest`: the 5 planned plus an unknown-booking / bad-filter case). Step 2 RED not run: the tests were written together with the implementation, so no failing-run evidence.
+- `refundRequired=false` or a missing param both give `400` (`VALIDATION_FAILED` / Spring's missing-param error).
+- Stale check is the explicit version compare plus `saveAndFlush`, so a concurrent `@Version` clash surfaces as `409 STALE_UPDATE` from the service call. The concurrent-clash path itself is not tested (only the compare path).
+- Unmatched-payment clear runs in a controller-level `@Transactional` (no service layer, YAGNI); the guarded update decides, `existsById` only separates `404` from `409`.
+- Tests assert on their own ids in `size=100` pages; if the shared DB ever holds more than 100 refund-flagged bookings the list assertions could miss.
 
 ---
 
