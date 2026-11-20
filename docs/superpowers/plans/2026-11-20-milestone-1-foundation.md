@@ -310,9 +310,9 @@ git commit -m "feat: ProblemDetail error model, JWT resource server security"
 ```
 
 **Done notes (Task 2):**
-- Commit: 79eac03. Tests: 13 total (handler 5, security 7, context 1), passing.
+- Commit: 79eac03. Tests: 14 total (handler 5, security 8, context 1), passing.
 - Deviations: none.
-- Gotchas: (1) In Spring 7, `ResponseEntityExceptionHandler.handleExceptionInternal` receives a **null body** for `ErrorResponse` exceptions (404/405/415...) and builds the ProblemDetail inside `super`; so add the `code` property to the body of the `super` result, not the incoming arg. (2) Jackson 3 `tools.jackson.databind.json.JsonMapper` is injectable as a bean. (3) `JwtValidators.createDefaultWithIssuer("ticketing")` covers timestamp + issuer. (4) Tests that mint tokens inject `JwtEncoder` + `Clock` and set `iss=ticketing`. (5) `JwtProperties` fails startup if `JWT_SECRET` is missing/short. (6) Unmatched `/api/**` GETs resolve as NoResourceFoundException, which surfaces as 404 NOT_FOUND.
+- Gotchas: (1) In Spring 7, `ResponseEntityExceptionHandler.handleExceptionInternal` receives a **null body** for `ErrorResponse` exceptions (404/405/415...) and builds the ProblemDetail inside `super`; so add the `code` property to the body of the `super` result, not the incoming arg. (2) Jackson 3 `tools.jackson.databind.json.JsonMapper` is injectable as a bean. (3) Decoder validators are built explicitly (`JwtTimestampValidator` with the injected `Clock` + `JwtIssuerValidator("ticketing")`) because `JwtValidators.createDefault*` uses the system clock. (4) Tests that mint tokens inject `JwtEncoder` + `Clock` and set `iss=ticketing`. (5) `JwtProperties` fails startup if `JWT_SECRET` is missing/short. (6) Unmatched `/api/**` GETs resolve as NoResourceFoundException, which surfaces as 404 NOT_FOUND.
 - Interfaces: as planned; `JwtAuthenticationConverter` is its own bean in `JwtConfig`. Package-private beans (`JwtConfig`, `SecurityConfig`, `ProblemDetailAuthHandlers`); `JwtProperties`, `Problems`, `ErrorCode`, `ApiException` are public.
 - Open questions: none.
 

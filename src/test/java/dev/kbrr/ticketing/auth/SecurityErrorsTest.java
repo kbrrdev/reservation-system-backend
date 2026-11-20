@@ -33,8 +33,12 @@ class SecurityErrorsTest {
 	@Autowired Clock clock;
 
 	private String token(JwtEncoder enc, List<String> roles, Duration age, Duration ttl) {
+		return token(enc, "ticketing", roles, age, ttl);
+	}
+
+	private String token(JwtEncoder enc, String issuer, List<String> roles, Duration age, Duration ttl) {
 		Instant iat = clock.instant().minus(age);
-		JwtClaimsSet claims = JwtClaimsSet.builder().issuer("ticketing").subject("1")
+		JwtClaimsSet claims = JwtClaimsSet.builder().issuer(issuer).subject("1")
 				.claim("email", "a@b.c").claim("roles", roles).issuedAt(iat).expiresAt(iat.plus(ttl)).build();
 		return enc.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
 	}
@@ -71,6 +75,13 @@ class SecurityErrorsTest {
 	}
 
 	@Test
+	void wrongIssuer() throws Exception {
+		String t = token(encoder, "evil", List.of("CUSTOMER"), Duration.ZERO, Duration.ofHours(1));
+		mvc.perform(get("/api/me").header("Authorization", "Bearer " + t))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+	}
+
+	@Test
 	void customerOnAdminPath() throws Exception {
 		mvc.perform(get("/api/admin/anything").header("Authorization", "Bearer " + valid("CUSTOMER")))
 				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
@@ -79,7 +90,7 @@ class SecurityErrorsTest {
 	@Test
 	void unknownPathWithValidToken() throws Exception {
 		mvc.perform(get("/api/does-not-exist").header("Authorization", "Bearer " + valid("CUSTOMER")))
-				.andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print()).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
 	}
 
 	@Test
