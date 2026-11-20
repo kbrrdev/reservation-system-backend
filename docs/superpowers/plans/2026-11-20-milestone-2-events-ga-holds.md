@@ -197,7 +197,7 @@ create table venues (
 create index venues_owner on venues (owner_id);
 ```
 
-- [ ] **Step 1: Write the failing tests** (`VenueTest`)
+- [x] **Step 1: Write the failing tests** (`VenueTest`)
 
 ```java
 @Test void organizerCreatesVenue() { /* POST {name,address,city,countryCode:"ph",timeZone:"Asia/Manila"} → 201,
@@ -210,18 +210,22 @@ void invalidTimeZone(String tz) { /* → 400 VALIDATION_FAILED, field timeZone *
 @Test void otherOrganizersVenueIsNotFound() { /* organizer B GET A's venue id → 404 NOT_FOUND */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=VenueTest`.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=VenueTest`.
 
-- [ ] **Step 3: Implement** the migration, entity, repository, service, controller and fixture.
+- [x] **Step 3: Implement** the migration, entity, repository, service, controller and fixture.
   Validation in `VenueService.create`:
   - The country must be `enabled`, or `fieldError("countryCode", "country is not enabled")`.
   - `ZoneId.getAvailableZoneIds().contains(timeZone)`, or `fieldError("timeZone", "must be an IANA region id like Asia/Manila")`.
     This is case-sensitive: `asia/manila` is rejected.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: organizer venues with country and time zone"`
+- [x] **Step 5: Commit** — `git commit -m "feat: organizer venues with country and time zone"`
 
+**Done notes (Task 2):**
+- Commit: see `git log` (feat: organizer venues with country and time zone). Tests: 51 pass (41 + 10 in VenueTest, counting 5 parameterized time zones).
+- Deviations: `VenueService.requireOwned` is public (Task 3 is in another package); `VenueService` is a public class, its other methods and `VenueRepository`/DTOs stay package-private. Entity needs `@Table(name = "venues")` (default name would be `venue`) and `@JdbcTypeCode(SqlTypes.CHAR)` on `countryCode` so `ddl-auto: validate` accepts the `char(2)` column. Tests were written together with the implementation, so no separate RED run.
+- Gotchas: `TestFixtures` is public with a package-private constructor and is injectable in any test via `@IntegrationTest`; `customer()`/`organizer()` save users with a unique email and a `{noop}` password hash (not loginable, use `bearer(u)`). Disabled and unknown country codes both give VALIDATION_FAILED on `countryCode`.
 ---
 
 ### Task 3: Events with GA ticket types (organizer side)
