@@ -652,7 +652,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
   - Batch size comes from the new `BookingProperties.expiryBatchSize` (default `100`, `ticketing.booking.expiry-batch-size`).
     Package-private constructor `ExpiryJob(BookingRepository, BookingService, Clock, int batchSize)` for tests.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `PaymentConcurrencyTest` (service level: `PaymentConfirmationService.handle`, `BookingService.expire/hold/cancel`; start
 latch; `get(30, SECONDS)`):
@@ -677,10 +677,10 @@ In `ConfirmAndExpiryTest`:
    still PENDING_PAYMENT; run() returns (no infinite loop: assertTimeoutPreemptively 10 s) */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='PaymentConcurrencyTest,ConfirmAndExpiryTest'`.
-- [ ] **Step 3: Implement** the ExpiryJob change. The race tests should pass on Task 3–4 code; if one fails, fix the code, not the test.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`; run `PaymentConcurrencyTest` 3 times.
-- [ ] **Step 5: README:**
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='PaymentConcurrencyTest,ConfirmAndExpiryTest'`.
+- [x] **Step 3: Implement** the ExpiryJob change. The race tests should pass on Task 3–4 code; if one fails, fix the code, not the test.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`; run `PaymentConcurrencyTest` 3 times.
+- [x] **Step 5: README:**
   - Milestone 4 ✅, status line "Milestones 1–4 done; milestone 5 next."
   - "Try it": replace the fake-pay step with the dev fake-provider webhook `curl`:
     - header `Fake-Signature: dev-fake-secret`;
@@ -691,7 +691,7 @@ In `ConfirmAndExpiryTest`:
       for `checkout_session.payment.paid` in the PayMongo dashboard;
     - pay on the returned `checkoutUrl` with a test method.
   - Admin refund endpoints in one line.
-- [ ] **Step 6: Manual check** (`docker compose up -d`, app with the `dev` profile, stop it afterwards):
+- [x] **Step 6: Manual check** (`docker compose up -d`, app with the `dev` profile, stop it afterwards):
   1. A customer holds 2 Sample Concert tickets: the response has `checkoutUrl` `https://checkout.fake.test/…`.
   2. The fake webhook `curl` → `200`. The booking is `CONFIRMED` with 2 tickets.
   3. The same `curl` again → `200`, still 2 tickets.
@@ -699,7 +699,15 @@ In `ConfirmAndExpiryTest`:
   5. As admin, a second paid event id for the same booking → `GET /api/admin/bookings?refundRequired=true` lists it.
   - *Optional, only if the human has put PayMongo test keys in `.env`:* `PH_PAYMENT_PROVIDER=paymongo`, hold, open
     `checkoutUrl`, pay in test mode through a tunnel, and confirm. Otherwise report it as skipped.
-- [ ] **Step 7: Commit** — `git commit -m "feat: payment race tests, expiry job skips failing bookings, README for milestone 4"`
+- [x] **Step 7: Commit** — `git commit -m "feat: payment race tests, expiry job skips failing bookings, README for milestone 4"`
+
+**Done notes (Task 7):** commit e7c1cc2; suite 187 tests green (5 new `PaymentConcurrencyTest`, 1 new `ConfirmAndExpiryTest.expiryJobSkipsFailingBookings`); `PaymentConcurrencyTest` ran green 3 more times. RED: the expiry test failed on the old loop (with the 4-arg constructor added first): the later booking stayed `PENDING_PAYMENT`. The 5 race tests passed on Task 3–4 code with no fixes, as the brief expected.
+- The job fixes `now` once per run, so the set of candidates only shrinks and the loop always ends. A failing booking that a payment resolves during the run shifts the offset by one, so one booking may wait for the next run. Harmless.
+- `expiryBatchSize` is a primitive `int` set in `application.yml`; a config that leaves it out would get 0 and loop forever on empty batches. Every profile inherits the main yml, so this is only a risk for a hand-written config.
+- `payWinsDeterministically` waits on `pg_stat_activity` (`wait_event_type = 'Lock'`, this database) for 1 then 2 waiters; no helper existed in M2/M3, so it is a private method in the test. The booking is held through `BookingCheckout`, so it has a payment reference.
+- `expiryJobSkipsFailingBookings` restores the poisoned seat and expires the booking in `finally`, so later expiry runs on the shared DB stay quiet.
+- Manual check (dev, fake provider) all passed: hold → `checkout.fake.test` URL; webhook 200, CONFIRMED, 2 tickets; repeat 200, still 2; bad signature 401; second event id → listed under `refundRequired=true`. Real PayMongo step skipped: no `PAYMONGO_SECRET_KEY` in `.env`. The dev DB now holds that test booking.
+- Open question carried from Task 6: PayMongo field names are still unverified against the live API.
 
 ---
 
