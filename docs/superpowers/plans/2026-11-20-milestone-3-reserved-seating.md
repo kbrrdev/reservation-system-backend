@@ -155,7 +155,7 @@ create table seats (
 6. `countByVenueId + new > 20000` → `fieldError("seatsPerRow", "a venue has at most 20000 seats")`.
 7. Save the section, then `saveAll` its seats.
 
-- [ ] **Step 1: Write the failing tests** (`SectionTest`, `@IntegrationTest`)
+- [x] **Step 1: Write the failing tests** (`SectionTest`, `@IntegrationTest`)
 
 ```java
 @Test void createsSectionWithSeats() { /* POST {name:"Orchestra", rowLabels:["a","B"], seatsPerRow:10} → 201,
@@ -169,10 +169,17 @@ create table seats (
 @Test void otherOrganizersVenue() { /* → 404 NOT_FOUND */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=SectionTest`.
-- [ ] **Step 3: Implement** the migration, entities, repositories, service, controller and fixture.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: venue sections and seats"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=SectionTest`.
+- [x] **Step 3: Implement** the migration, entities, repositories, service, controller and fixture.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: venue sections and seats"`
+
+**Done notes (Task 1):**
+- Commit: see `git log` (feat: venue sections and seats). Tests: 109 pass (101 + 8 SectionTest). RED run was a compile failure (section code missing).
+- Deviations: none in behavior. Sections store no row/seat-per-row columns, so `list` rebuilds `rowLabels`/`seatsPerRow` from seats via `SeatRepository.rowsOf` (one grouped JPQL query, ordered by `rowIndex`); it returns `List<Object[]>`.
+- Gotchas: `requireOwnedForUpdate` must run inside a transaction (`SectionService.create` is `@Transactional`; Task 2 must do the same). `SectionRepository`/`SeatRepository`/entities are public. Batch settings live under `spring.jpa.properties.hibernate`.
+- Interface: `TestFixtures.section(organizer, venue, name, rows, seatsPerRow)` calls the service directly; creating a section after `gaEvent` on that venue gives `VENUE_IN_USE`.
+- Open questions: none.
 
 ---
 

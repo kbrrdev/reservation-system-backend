@@ -8,6 +8,9 @@ import dev.kbrr.ticketing.event.TicketTypeRequest;
 import dev.kbrr.ticketing.user.Role;
 import dev.kbrr.ticketing.user.User;
 import dev.kbrr.ticketing.user.UserRepository;
+import dev.kbrr.ticketing.venue.SectionRequest;
+import dev.kbrr.ticketing.venue.SectionResponse;
+import dev.kbrr.ticketing.venue.SectionService;
 import dev.kbrr.ticketing.venue.VenueRequest;
 import dev.kbrr.ticketing.venue.VenueResponse;
 import dev.kbrr.ticketing.venue.VenueService;
@@ -33,13 +36,16 @@ public class TestFixtures {
 	private final Clock clock;
 	private final VenueService venues;
 	private final EventService events;
+	private final SectionService sections;
 
-	TestFixtures(UserRepository users, JwtEncoder encoder, Clock clock, VenueService venues, EventService events) {
+	TestFixtures(UserRepository users, JwtEncoder encoder, Clock clock, VenueService venues, EventService events,
+			SectionService sections) {
 		this.users = users;
 		this.encoder = encoder;
 		this.clock = clock;
 		this.venues = venues;
 		this.events = events;
+		this.sections = sections;
 	}
 
 	public User customer() {
@@ -64,6 +70,11 @@ public class TestFixtures {
 
 	public VenueResponse venue(User organizer, String countryCode, String timeZone, String city) {
 		return venues.create(organizer.getId(), new VenueRequest("Arena", "1 Main St", city, countryCode, timeZone));
+	}
+
+	public SectionResponse section(User organizer, VenueResponse venue, String name, List<String> rows,
+			int seatsPerRow) {
+		return sections.create(organizer.getId(), venue.id(), new SectionRequest(name, rows, seatsPerRow));
 	}
 
 	/** One "Regular" ticket type; sale started 1h ago, starts in 30 days, lasts 3h (venue-local, from the clock). */
