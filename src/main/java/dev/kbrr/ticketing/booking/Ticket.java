@@ -20,6 +20,7 @@ class Ticket {
 
 	private UUID bookingId;
 	private UUID ticketTypeId;
+	private UUID eventSeatId; // null for general admission
 	private String code;
 
 	@Enumerated(EnumType.STRING)
@@ -31,8 +32,13 @@ class Ticket {
 	}
 
 	Ticket(UUID bookingId, UUID ticketTypeId, String code, Instant issuedAt) {
+		this(bookingId, ticketTypeId, null, code, issuedAt);
+	}
+
+	Ticket(UUID bookingId, UUID ticketTypeId, UUID eventSeatId, String code, Instant issuedAt) {
 		this.bookingId = bookingId;
 		this.ticketTypeId = ticketTypeId;
+		this.eventSeatId = eventSeatId;
 		this.code = code;
 		this.status = TicketStatus.VALID;
 		this.issuedAt = issuedAt;
@@ -41,6 +47,7 @@ class Ticket {
 	UUID getId() { return id; }
 	UUID getBookingId() { return bookingId; }
 	UUID getTicketTypeId() { return ticketTypeId; }
+	UUID getEventSeatId() { return eventSeatId; }
 	String getCode() { return code; }
 	TicketStatus getStatus() { return status; }
 	Instant getIssuedAt() { return issuedAt; }

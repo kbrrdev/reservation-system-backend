@@ -35,6 +35,14 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, UUID> {
 			where es.eventId = :eventId order by sec.name, s.rowIndex, s.seatNumber""")
 	List<SeatMapRow> findSeatMap(UUID eventId);
 
+	/** Section / row / number labels for the given seats (tickets); same projection as {@link #findSeatMap}. */
+	@Query("""
+			select new dev.kbrr.ticketing.event.SeatMapRow(es.id, sec.id, sec.name, s.rowLabel, s.rowIndex, s.seatNumber,
+			es.status, es.ticketTypeId)
+			from EventSeat es join Seat s on s.id = es.seatId join Section sec on sec.id = s.sectionId
+			where es.id in :eventSeatIds""")
+	List<SeatMapRow> findSeatLabels(Collection<UUID> eventSeatIds);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select es from EventSeat es where es.id in :ids order by es.id")
 	List<EventSeat> lockByIds(Collection<UUID> ids);

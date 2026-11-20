@@ -45,4 +45,30 @@ class SeatInventory {
 					"Expected " + seatIds.size() + " seats held for booking " + bookingId + ", got " + rows);
 		}
 	}
+
+	/**
+	 * HELD → SOLD for the booking's seats. The caller holds the booking lock, so the seats are exactly the ones it
+	 * held; returns them as read under the lock, since markSold clears the persistence context.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	List<EventSeat> confirm(UUID bookingId, int expected) {
+		List<EventSeat> locked = seats.lockByBookingId(bookingId);
+		expectRows(locked.size(), expected, "locked", bookingId);
+		expectRows(seats.markSold(bookingId), expected, "sold", bookingId);
+		return locked;
+	}
+
+	/** HELD → AVAILABLE for the booking's seats (expire, cancel). */
+	@Transactional(propagation = Propagation.MANDATORY)
+	void release(UUID bookingId, int expected) {
+		expectRows(seats.lockByBookingId(bookingId).size(), expected, "locked", bookingId);
+		expectRows(seats.markAvailable(bookingId), expected, "released", bookingId);
+	}
+
+	private static void expectRows(int rows, int expected, String what, UUID bookingId) {
+		if (rows != expected) {
+			throw new IllegalStateException(
+					"Expected " + expected + " seats " + what + " for booking " + bookingId + ", got " + rows);
+		}
+	}
 }
