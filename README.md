@@ -9,7 +9,7 @@ that never oversell a seat, verified payment webhooks, and Testcontainers-backed
 
 ## Status
 
-🚧 **Design approved, implementation starting.** Built in milestones; each one is a working, tested slice.
+🚧 **Milestone 1 done; milestone 2 next.** Built in milestones; each one is a working, tested slice.
 
 | # | Milestone | Status |
 |---|---|---|
