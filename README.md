@@ -38,7 +38,7 @@ Prerequisites: Java 25 and Docker.
 
 ```bash
 cp .env.example .env            # then fill in DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET (git-ignored)
-docker compose up -d            # PostgreSQL
+docker compose up -d            # PostgreSQL on localhost:5433 (5433 avoids clashing with a locally installed Postgres)
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
