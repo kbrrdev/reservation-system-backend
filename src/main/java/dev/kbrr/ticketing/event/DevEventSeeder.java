@@ -48,6 +48,8 @@ public class DevEventSeeder implements ApplicationRunner {
 		events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Sample Concert",
 				"Sample data for local development.", EventCategory.CONCERT, start, start.plusHours(3),
 				now.minusMinutes(1), null,
-				List.of(new TicketTypeRequest("VIP", 500000L, 50), new TicketTypeRequest("Regular", 150000L, 500))));
+				List.of(new TicketTypeRequest("VIP", 500000L, 50, null),
+						new TicketTypeRequest("Regular", 150000L, 500, null)),
+				null));
 	}
 }

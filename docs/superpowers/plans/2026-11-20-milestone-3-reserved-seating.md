@@ -251,7 +251,7 @@ create index event_seats_booking on event_seats (booking_id) where booking_id is
 - After `saveAndFlush` of the event (so ticket type ids exist): save the `TicketTypeSection` rows, flush, then `generate(eventId)`.
   The returned count must equal `countByVenueId` → else `IllegalStateException`.
 
-- [ ] **Step 1: Write the failing tests** (`ReservedEventTest`)
+- [x] **Step 1: Write the failing tests** (`ReservedEventTest`)
 
 ```java
 @Test void createsReservedEventWithEventSeats() { /* venue with sections Orchestra (A,B × 10) and Balcony (C × 5);
@@ -266,13 +266,20 @@ create index event_seats_booking on event_seats (booking_id) where booking_id is
 @Test void gaStillDefault() { /* request without seatingMode → $.seatingMode "GA" (existing fixtures keep working) */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ReservedEventTest`.
-- [ ] **Step 3: Implement.** Add `null` for the new trailing fields at every existing `new CreateEventRequest(...)` /
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ReservedEventTest`.
+- [x] **Step 3: Implement.** Add `null` for the new trailing fields at every existing `new CreateEventRequest(...)` /
   `new TicketTypeRequest(...)` call (8 call sites across main and test).
   Add `TestFixtures.reservedEvent(User organizer, VenueResponse venue, Map<String, List<UUID>> sectionsByTypeName, long priceMinor) -> EventResponse`:
   every type gets that price, with the same schedule as `gaEvent`.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: reserved events with section pricing and generated event seats"`
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: reserved events with section pricing and generated event seats"`
+
+**Done notes (Task 2):**
+- Tests: 116 total (7 new in `ReservedEventTest`), all green. Commit: see `git log` (feat: reserved events with section pricing and generated event seats).
+- Deviations: `EventResponse.from(Event, Map<ticketTypeId, sectionIds>)` now takes the section mapping; `EventService.respond(Event)` loads it (one extra query, reserved events only) and every service read path uses it. Lists of reserved events therefore do one extra query per event (fine for now).
+- Reserved validation lives in private `validateGa` / `validateReserved`, which also return capacity by ticket type name. `Event` constructor gained a `SeatingMode` arg. `TestFixtures.reservedEvent` added.
+- Gotchas: `EventSeat` is read-only from JPA (no setters, no `@Version`); `generate` is a native insert and does not flush or clear, so tests/services should not rely on a stale persistence context. Section ids are not checked for existence beyond venue membership; a venue with no sections is rejected before any per-type check.
+- Open questions: none.
 
 ---
 

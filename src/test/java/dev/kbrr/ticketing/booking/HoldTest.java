@@ -123,7 +123,8 @@ class HoldTest {
 		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(v.timeZone()));
 		EventResponse e = events.create(org.getId(), new CreateEventRequest(v.id(), "Two types", null,
 				EventCategory.CONCERT, now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
-				List.of(new TicketTypeRequest("A", 150000L, 10), new TicketTypeRequest("B", 150000L, 10))));
+				List.of(new TicketTypeRequest("A", 150000L, 10, null),
+				new TicketTypeRequest("B", 150000L, 10, null)), null));
 		User c = fx.customer();
 		hold(c, e, Integer.MAX_VALUE).andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("TICKET_LIMIT_EXCEEDED"));
@@ -208,7 +209,8 @@ class HoldTest {
 		do {
 			e = events.create(org.getId(), new CreateEventRequest(v.id(), "Rollback", null, EventCategory.CONCERT,
 					now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
-					List.of(new TicketTypeRequest("Plenty", 150000L, 10), new TicketTypeRequest("Scarce", 150000L, 1))));
+					List.of(new TicketTypeRequest("Plenty", 150000L, 10, null),
+					new TicketTypeRequest("Scarce", 150000L, 1, null)), null));
 			plenty = e.ticketTypes().stream().filter(t -> t.name().equals("Plenty")).findFirst().orElseThrow().id();
 			scarce = e.ticketTypes().stream().filter(t -> t.name().equals("Scarce")).findFirst().orElseThrow().id();
 		} while (plenty.compareTo(scarce) > 0);

@@ -4,6 +4,7 @@ import dev.kbrr.ticketing.event.CreateEventRequest;
 import dev.kbrr.ticketing.event.EventCategory;
 import dev.kbrr.ticketing.event.EventResponse;
 import dev.kbrr.ticketing.event.EventService;
+import dev.kbrr.ticketing.event.SeatingMode;
 import dev.kbrr.ticketing.event.TicketTypeRequest;
 import dev.kbrr.ticketing.user.Role;
 import dev.kbrr.ticketing.user.User;
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -89,7 +91,19 @@ public class TestFixtures {
 			LocalDateTime saleStartsAt, LocalDateTime startsAt, LocalDateTime endsAt) {
 		return events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Event " + UUID.randomUUID(), null,
 				EventCategory.CONCERT, startsAt, endsAt, saleStartsAt, maxTickets,
-				List.of(new TicketTypeRequest("Regular", priceMinor, capacity))));
+				List.of(new TicketTypeRequest("Regular", priceMinor, capacity, null)), null));
+	}
+
+	/** Reserved event, same schedule as {@link #gaEvent}; every ticket type gets {@code priceMinor}. */
+	public EventResponse reservedEvent(User organizer, VenueResponse venue,
+			Map<String, List<UUID>> sectionsByTypeName, long priceMinor) {
+		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(venue.timeZone()))
+				.truncatedTo(ChronoUnit.MINUTES);
+		return events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Event " + UUID.randomUUID(), null,
+				EventCategory.CONCERT, now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
+				sectionsByTypeName.entrySet().stream()
+						.map(e -> new TicketTypeRequest(e.getKey(), priceMinor, null, e.getValue())).toList(),
+				SeatingMode.RESERVED));
 	}
 
 	private User save(Set<Role> roles) {

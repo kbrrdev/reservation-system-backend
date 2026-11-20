@@ -46,7 +46,8 @@ public class Event {
 	private Instant startsAt;
 	private Instant endsAt;
 	private Instant saleStartsAt;
-	private String seatingMode;
+	@Enumerated(EnumType.STRING)
+	private SeatingMode seatingMode;
 	private int maxTicketsPerCustomer;
 
 	@Enumerated(EnumType.STRING)
@@ -65,7 +66,8 @@ public class Event {
 	}
 
 	Event(UUID organizerId, Venue venue, String currency, String title, String description, EventCategory category,
-			Instant startsAt, Instant endsAt, Instant saleStartsAt, int maxTicketsPerCustomer, EventStatus status,
+			SeatingMode seatingMode, Instant startsAt, Instant endsAt, Instant saleStartsAt,
+			int maxTicketsPerCustomer, EventStatus status,
 			Instant createdAt) {
 		this.organizerId = organizerId;
 		this.venue = venue;
@@ -76,7 +78,7 @@ public class Event {
 		this.startsAt = startsAt;
 		this.endsAt = endsAt;
 		this.saleStartsAt = saleStartsAt;
-		this.seatingMode = "GA";
+		this.seatingMode = seatingMode;
 		this.maxTicketsPerCustomer = maxTicketsPerCustomer;
 		this.status = status;
 		this.createdAt = createdAt;
@@ -103,7 +105,7 @@ public class Event {
 	public Instant getStartsAt() { return startsAt; }
 	public Instant getEndsAt() { return endsAt; }
 	public Instant getSaleStartsAt() { return saleStartsAt; }
-	public String getSeatingMode() { return seatingMode; }
+	public SeatingMode getSeatingMode() { return seatingMode; }
 	public int getMaxTicketsPerCustomer() { return maxTicketsPerCustomer; }
 	public EventStatus getStatus() { return status; }
 	public Instant getCreatedAt() { return createdAt; }
