@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,11 +21,25 @@ class AuthService {
 	private final UserRepository users;
 	private final PasswordEncoder encoder;
 	private final Clock clock;
+	private final JwtService jwt;
+	// Verified against when the email is unknown, so both failures cost one BCrypt check.
+	private final String dummyHash;
 
-	AuthService(UserRepository users, PasswordEncoder encoder, Clock clock) {
+	AuthService(UserRepository users, PasswordEncoder encoder, Clock clock, JwtService jwt) {
 		this.users = users;
 		this.encoder = encoder;
 		this.clock = clock;
+		this.jwt = jwt;
+		this.dummyHash = encoder.encode(UUID.randomUUID().toString());
+	}
+
+	IssuedToken login(LoginRequest req) {
+		User user = users.findByEmail(User.normalizeEmail(req.email())).orElse(null);
+		boolean ok = encoder.matches(req.password(), user != null ? user.getPasswordHash() : dummyHash);
+		if (user == null || !ok) {
+			throw new ApiException(ErrorCode.INVALID_CREDENTIALS, "Email or password is incorrect");
+		}
+		return jwt.issue(user);
 	}
 
 	// Not @Transactional: saveAndFlush runs in its own repository transaction, so a unique-constraint
