@@ -2,3 +2,4 @@
 ticketing:
   dev-seed:
     password: devpassword123
+  fake-payments.enabled: true

@@ -72,6 +72,12 @@ class Booking {
 		totalMinor = Math.addExact(totalMinor, Math.multiplyExact(unitPriceMinor, quantity));
 	}
 
+	/** Audit fields only; the status itself moves through the conditional {@code updateStatus} query. */
+	void markCancelled(Instant at, UUID by) {
+		this.cancelledAt = at;
+		this.cancelledBy = by;
+	}
+
 	UUID getId() { return id; }
 	UUID getUserId() { return userId; }
 	UUID getEventId() { return eventId; }

@@ -4,3 +4,5 @@ ticketing:
   countries:
     JP: {enabled: true, currency: JPY, payment-provider: fake, min-charge-minor: 50}
     US: {enabled: false, currency: USD, payment-provider: fake, min-charge-minor: 50}
+  fake-payments.enabled: true
+  scheduling.enabled: false
