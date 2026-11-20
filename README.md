@@ -9,13 +9,13 @@ that never oversell a seat, verified payment webhooks, and Testcontainers-backed
 
 ## Status
 
-🚧 **Milestones 1–2 done; milestone 3 next.** Built in milestones; each one is a working, tested slice.
+🚧 **Milestones 1–3 done; milestone 4 next.** Built in milestones; each one is a working, tested slice.
 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Project skeleton, Postgres, Flyway, users + JWT auth | ✅ Done |
 | 2 | Countries, venues, events, general-admission holds | ✅ Done |
-| 3 | Reserved seating | — |
+| 3 | Reserved seating | ✅ Done |
 | 4 | Payments (PayMongo test mode) | — |
 | 5 | Organizer / admin approval, cancel, check-in | — |
 | 6 | Free tickets and comps | — |
@@ -57,12 +57,13 @@ The `dev` profile seeds three accounts (created only if missing), all with the p
 
 The password is for local development only; the seeder never runs without the `dev` profile.
 
-The `dev` profile also seeds one sample event ("Sample Concert", on sale, with VIP and Regular tickets) the first time
-the organizer has no venue.
+The `dev` profile also seeds two sample events, each created only if the organizer has no venue of that name:
+"Sample Concert" (general admission, VIP and Regular tickets) and "Sample Play" (reserved seating, 86 seats in Orchestra
+and Balcony sections).
 
 ### Try it
 
-Replace `$TOKEN`, `$EVENT`, `$REGULAR` and `$BOOKING` with the values from the previous responses.
+Replace `$TOKEN`, `$EVENT`, `$REGULAR`, `$BOOKING`, `$PLAY`, `$SEAT1` and `$SEAT2` with the values from the previous responses.
 
 1. Log in: `curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"email":"customer@example.test","password":"devpassword123"}'` and copy `accessToken` into `$TOKEN`.
 2. List events: `curl -s 'localhost:8080/api/events?country=PH'` (copy the event `id` and the Regular ticket type `id`).
@@ -71,5 +72,9 @@ Replace `$TOKEN`, `$EVENT`, `$REGULAR` and `$BOOKING` with the values from the p
 5. Fake payment (dev only): `curl -s -X POST localhost:8080/api/bookings/$BOOKING/fake-pay -H "Authorization: Bearer $TOKEN"` (status `CONFIRMED`).
 6. Ticket codes: `curl -s localhost:8080/api/bookings/$BOOKING/tickets -H "Authorization: Bearer $TOKEN"` (2 codes).
 7. Availability again: Regular `remaining` is now 498.
+
+Reserved seating: the same flow with "Sample Play". Its availability response lists every seat with an `eventSeatId` (copy two into `$SEAT1` / `$SEAT2`, and the event `id` into `$PLAY`); hold seats by
+sending those ids instead of ticket types: `curl -s -X POST localhost:8080/api/bookings -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"eventId":"'$PLAY'","eventSeatIds":["'$SEAT1'","'$SEAT2'"]}'`.
+Fake-pay it, and the tickets carry `section` / `row` / `number`; those seats show as `SOLD` in availability.
 
 Run the tests (needs Docker, for Testcontainers): `./mvnw test`

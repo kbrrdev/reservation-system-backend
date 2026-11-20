@@ -1,18 +1,24 @@
 package dev.kbrr.ticketing.booking;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -51,6 +57,12 @@ class Booking {
 	@OneToMany(mappedBy = "booking", cascade = CascadeType.ALL)
 	private List<BookingItem> items = new ArrayList<>();
 
+	/** Seats this booking held (reserved seating); a permanent record, never cleared on expiry or cancel. */
+	@ElementCollection
+	@CollectionTable(name = "booking_seats", joinColumns = @JoinColumn(name = "booking_id"))
+	@Column(name = "event_seat_id")
+	private Set<UUID> eventSeatIds = new HashSet<>();
+
 	protected Booking() {
 	}
 
@@ -70,6 +82,10 @@ class Booking {
 	void addItem(UUID ticketTypeId, int quantity, long unitPriceMinor) {
 		items.add(new BookingItem(this, ticketTypeId, quantity, unitPriceMinor));
 		totalMinor = Math.addExact(totalMinor, Math.multiplyExact(unitPriceMinor, quantity));
+	}
+
+	void addSeat(UUID eventSeatId) {
+		eventSeatIds.add(eventSeatId);
 	}
 
 	/** Audit fields only; the status itself moves through the conditional {@code updateStatus} query. */
@@ -92,4 +108,5 @@ class Booking {
 	UUID getCancelledBy() { return cancelledBy; }
 	long getVersion() { return version; }
 	List<BookingItem> getItems() { return items; }
+	Set<UUID> getEventSeatIds() { return eventSeatIds; }
 }

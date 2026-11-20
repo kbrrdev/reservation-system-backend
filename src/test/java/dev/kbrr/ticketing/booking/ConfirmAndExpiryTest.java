@@ -221,7 +221,7 @@ class ConfirmAndExpiryTest {
 	void expireWaitsForConfirmHoldingBookingLock() throws Exception {
 		EventResponse e = event(10, 8);
 		UUID owner = fx.customer().getId();
-		UUID id = bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), 2)))).id();
+		UUID id = bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), 2)), null)).id();
 		clock.advance(PAST_EXPIRY);
 
 		TransactionTemplate tx = new TransactionTemplate(txManager);
@@ -270,7 +270,7 @@ class ConfirmAndExpiryTest {
 			UUID owner = fx.customer().getId();
 			events.add(e);
 			owners.add(owner);
-			ids.add(bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), quantity))))
+			ids.add(bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), quantity)), null))
 					.id());
 		}
 		clock.advance(PAST_EXPIRY);

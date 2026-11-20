@@ -44,4 +44,10 @@ public class VenueService {
 		return venues.findByIdAndOwnerId(id, ownerId)
 				.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Venue not found"));
 	}
+
+	/** Takes the venue row lock; call inside a transaction. */
+	public Venue requireOwnedForUpdate(UUID ownerId, UUID id) {
+		return venues.findForUpdateByIdAndOwnerId(id, ownerId)
+				.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Venue not found"));
+	}
 }

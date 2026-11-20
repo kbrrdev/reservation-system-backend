@@ -4,10 +4,14 @@ import dev.kbrr.ticketing.event.CreateEventRequest;
 import dev.kbrr.ticketing.event.EventCategory;
 import dev.kbrr.ticketing.event.EventResponse;
 import dev.kbrr.ticketing.event.EventService;
+import dev.kbrr.ticketing.event.SeatingMode;
 import dev.kbrr.ticketing.event.TicketTypeRequest;
 import dev.kbrr.ticketing.user.Role;
 import dev.kbrr.ticketing.user.User;
 import dev.kbrr.ticketing.user.UserRepository;
+import dev.kbrr.ticketing.venue.SectionRequest;
+import dev.kbrr.ticketing.venue.SectionResponse;
+import dev.kbrr.ticketing.venue.SectionService;
 import dev.kbrr.ticketing.venue.VenueRequest;
 import dev.kbrr.ticketing.venue.VenueResponse;
 import dev.kbrr.ticketing.venue.VenueService;
@@ -17,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -33,13 +38,16 @@ public class TestFixtures {
 	private final Clock clock;
 	private final VenueService venues;
 	private final EventService events;
+	private final SectionService sections;
 
-	TestFixtures(UserRepository users, JwtEncoder encoder, Clock clock, VenueService venues, EventService events) {
+	TestFixtures(UserRepository users, JwtEncoder encoder, Clock clock, VenueService venues, EventService events,
+			SectionService sections) {
 		this.users = users;
 		this.encoder = encoder;
 		this.clock = clock;
 		this.venues = venues;
 		this.events = events;
+		this.sections = sections;
 	}
 
 	public User customer() {
@@ -66,6 +74,11 @@ public class TestFixtures {
 		return venues.create(organizer.getId(), new VenueRequest("Arena", "1 Main St", city, countryCode, timeZone));
 	}
 
+	public SectionResponse section(User organizer, VenueResponse venue, String name, List<String> rows,
+			int seatsPerRow) {
+		return sections.create(organizer.getId(), venue.id(), new SectionRequest(name, rows, seatsPerRow));
+	}
+
 	/** One "Regular" ticket type; sale started 1h ago, starts in 30 days, lasts 3h (venue-local, from the clock). */
 	public EventResponse gaEvent(User organizer, VenueResponse venue, int capacity, long priceMinor) {
 		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(venue.timeZone()))
@@ -78,7 +91,26 @@ public class TestFixtures {
 			LocalDateTime saleStartsAt, LocalDateTime startsAt, LocalDateTime endsAt) {
 		return events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Event " + UUID.randomUUID(), null,
 				EventCategory.CONCERT, startsAt, endsAt, saleStartsAt, maxTickets,
-				List.of(new TicketTypeRequest("Regular", priceMinor, capacity))));
+				List.of(new TicketTypeRequest("Regular", priceMinor, capacity, null)), null));
+	}
+
+	/** Reserved event, same schedule as {@link #gaEvent}; every ticket type gets {@code priceMinor}. */
+	public EventResponse reservedEvent(User organizer, VenueResponse venue,
+			Map<String, List<UUID>> sectionsByTypeName, long priceMinor) {
+		return reservedEvent(organizer, venue, sectionsByTypeName, Map.copyOf(sectionsByTypeName.keySet().stream()
+				.collect(java.util.stream.Collectors.toMap(k -> k, k -> priceMinor))));
+	}
+
+	/** As above with a price per ticket type name. */
+	public EventResponse reservedEvent(User organizer, VenueResponse venue,
+			Map<String, List<UUID>> sectionsByTypeName, Map<String, Long> priceByTypeName) {
+		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(venue.timeZone()))
+				.truncatedTo(ChronoUnit.MINUTES);
+		return events.create(organizer.getId(), new CreateEventRequest(venue.id(), "Event " + UUID.randomUUID(), null,
+				EventCategory.CONCERT, now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
+				sectionsByTypeName.entrySet().stream()
+						.map(e -> new TicketTypeRequest(e.getKey(), priceByTypeName.get(e.getKey()), null, e.getValue())).toList(),
+				SeatingMode.RESERVED));
 	}
 
 	private User save(Set<Role> roles) {

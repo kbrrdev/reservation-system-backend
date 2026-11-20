@@ -5,7 +5,12 @@ import dev.kbrr.ticketing.common.ErrorCode;
 import dev.kbrr.ticketing.country.CountryProperties;
 import dev.kbrr.ticketing.event.Event;
 import dev.kbrr.ticketing.event.EventRepository;
+import dev.kbrr.ticketing.event.EventSeat;
+import dev.kbrr.ticketing.event.EventSeatRepository;
+import dev.kbrr.ticketing.event.EventSeatStatus;
 import dev.kbrr.ticketing.event.EventStatus;
+import dev.kbrr.ticketing.event.SeatMapRow;
+import dev.kbrr.ticketing.event.SeatingMode;
 import dev.kbrr.ticketing.event.TicketType;
 import dev.kbrr.ticketing.event.TicketTypeRepository;
 import dev.kbrr.ticketing.user.UserRepository;
@@ -16,8 +21,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -38,29 +45,44 @@ class BookingService {
 	private final CountryProperties countries;
 	private final BookingProperties props;
 	private final TicketRepository tickets;
+	private final SeatInventory seatInventory;
+	private final EventSeatRepository eventSeats;
 	private final Clock clock;
 
 	BookingService(UserRepository users, EventRepository events, TicketTypeRepository ticketTypes,
 			BookingRepository bookings, TicketRepository tickets, CountryProperties countries,
-			BookingProperties props, Clock clock) {
+			BookingProperties props, SeatInventory seatInventory, EventSeatRepository eventSeats, Clock clock) {
 		this.users = users;
 		this.events = events;
 		this.ticketTypes = ticketTypes;
 		this.bookings = bookings;
 		this.tickets = tickets;
+		this.seatInventory = seatInventory;
+		this.eventSeats = eventSeats;
 		this.countries = countries;
 		this.props = props;
 		this.clock = clock;
 	}
 
 	/**
-	 * GA hold (spec flow 2). Lock order is user, event, then ticket types by id, the same everywhere, so
-	 * concurrent bookings cannot deadlock. Any exception rolls back the counters already taken.
+	 * Hold (spec flow 2), GA or reserved. Lock order is user, event (shared), then ticket types by Java UUID order
+	 * (GA) or seats by Postgres id order (reserved), the same everywhere, so concurrent bookings cannot deadlock.
+	 * Any exception rolls back whatever was already taken.
 	 */
 	@Transactional
 	BookingResponse hold(UUID userId, HoldRequest req) {
+		List<HoldRequest.Item> items = req.items() == null ? List.of() : req.items();
+		List<UUID> seatList = req.eventSeatIds() == null ? List.of() : req.eventSeatIds();
+		if (items.isEmpty() == seatList.isEmpty()) {
+			throw ApiException.fieldError("items",
+					"send either items (general admission) or eventSeatIds (reserved seating)");
+		}
+		Set<UUID> seatIds = new HashSet<>(seatList);
+		if (seatIds.size() != seatList.size()) {
+			throw ApiException.fieldError("eventSeatIds", "duplicate seat");
+		}
 		Set<UUID> ids = new HashSet<>();
-		for (HoldRequest.Item item : req.items()) {
+		for (HoldRequest.Item item : items) {
 			if (!ids.add(item.ticketTypeId())) {
 				throw ApiException.fieldError("items", "duplicate ticket type");
 			}
@@ -74,6 +96,14 @@ class BookingService {
 		if (now.isBefore(event.getSaleStartsAt()) || !now.isBefore(event.getEndsAt())) {
 			throw new ApiException(ErrorCode.EVENT_NOT_ON_SALE, "Tickets for this event are not on sale now");
 		}
+		// Before any inventory is touched: a reserved event's ticket-type counters are never used.
+		boolean reserved = !seatIds.isEmpty();
+		if (reserved != (event.getSeatingMode() == SeatingMode.RESERVED)) {
+			throw new ApiException(ErrorCode.NOT_FOUND, reserved ? "Seat not found" : "Ticket type not found");
+		}
+		if (reserved) {
+			return holdSeats(userId, event, now, seatIds);
+		}
 
 		Map<UUID, TicketType> types = ticketTypes.findAllById(ids).stream()
 				.collect(Collectors.toMap(TicketType::getId, Function.identity()));
@@ -82,32 +112,17 @@ class BookingService {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Ticket type not found");
 		}
 
-		Optional<Booking> pending = bookings.findPendingPurchase(userId, event.getId());
-		if (pending.isPresent()) {
-			// An expired hold is never released by noticing it here; only the expiry job releases it (rule 4).
-			if (!pending.get().getExpiresAt().isAfter(now)) {
-				throw new ApiException(ErrorCode.PREVIOUS_HOLD_RELEASING,
-						"Your previous hold is being released, retry in a few seconds");
-			}
-			throw new ApiException(ErrorCode.PENDING_HOLD_EXISTS, "You already have a pending booking for this event");
-		}
-
 		long requested = 0;
-		for (HoldRequest.Item item : req.items()) {
+		for (HoldRequest.Item item : items) {
 			requested = Math.addExact(requested, item.quantity());
 		}
 		// Checked before any price arithmetic: past this point quantities are at most the platform limit.
-		if (bookings.countActiveTickets(userId, event.getId()) + requested > event.getMaxTicketsPerCustomer()) {
-			throw new ApiException(ErrorCode.TICKET_LIMIT_EXCEEDED,
-					"At most " + event.getMaxTicketsPerCustomer() + " tickets per customer for this event");
-		}
+		checkPendingAndLimit(userId, event, now, requested);
 
 		// Read everything from managed entities first: the bulk updates below clear the persistence context.
-		Booking booking = new Booking(userId, event.getId(), BookingType.PURCHASE, event.getCurrency(),
-				now.plus(props.holdDuration()), countries.get(event.getVenue().getCountryCode()).paymentProvider(),
-				now);
+		Booking booking = newPurchase(userId, event, now);
 		// Java UUID.compareTo order of ticket type ids is the global lock order (confirm/release use it too).
-		List<HoldRequest.Item> sorted = req.items().stream()
+		List<HoldRequest.Item> sorted = items.stream()
 				.sorted(Comparator.comparing(HoldRequest.Item::ticketTypeId)).toList();
 		sorted.forEach(i -> booking.addItem(i.ticketTypeId(), i.quantity(),
 				types.get(i.ticketTypeId()).getPriceMinor()));
@@ -125,6 +140,57 @@ class BookingService {
 		return BookingResponse.from(bookings.save(booking));
 	}
 
+	/**
+	 * Reserved branch of {@link #hold}. The seat row locks make the AVAILABLE check final until commit, so the
+	 * guarded markHeld afterwards must change every seat; "already taken" is reported before anything changes.
+	 */
+	private BookingResponse holdSeats(UUID userId, Event event, Instant now, Set<UUID> seatIds) {
+		checkPendingAndLimit(userId, event, now, seatIds.size());
+		Booking booking = newPurchase(userId, event, now); // reads the venue before markHeld clears the context
+
+		List<EventSeat> seats = seatInventory.lockForHold(event.getId(), seatIds);
+		List<UUID> unavailable = seats.stream().filter(s -> s.getStatus() != EventSeatStatus.AVAILABLE)
+				.map(EventSeat::getId).toList();
+		if (!unavailable.isEmpty()) {
+			throw new ApiException(ErrorCode.TICKETS_UNAVAILABLE, "Some seats are no longer available",
+					Map.of("unavailable", unavailable));
+		}
+
+		Map<UUID, Long> countByType = seats.stream()
+				.collect(Collectors.groupingBy(EventSeat::getTicketTypeId, TreeMap::new, Collectors.counting()));
+		Map<UUID, Long> prices = ticketTypes.findAllById(countByType.keySet()).stream()
+				.collect(Collectors.toMap(TicketType::getId, TicketType::getPriceMinor));
+		countByType.forEach((typeId, n) -> booking.addItem(typeId, n.intValue(), prices.get(typeId)));
+		seats.forEach(s -> booking.addSeat(s.getId()));
+		// The row must exist before markHeld points event_seats.booking_id at it (FK).
+		UUID bookingId = bookings.saveAndFlush(booking).getId();
+
+		seatInventory.hold(seatIds, bookingId);
+		return BookingResponse.from(bookings.findById(bookingId).orElseThrow());
+	}
+
+	private void checkPendingAndLimit(UUID userId, Event event, Instant now, long requested) {
+		Optional<Booking> pending = bookings.findPendingPurchase(userId, event.getId());
+		if (pending.isPresent()) {
+			// An expired hold is never released by noticing it here; only the expiry job releases it (rule 4).
+			if (!pending.get().getExpiresAt().isAfter(now)) {
+				throw new ApiException(ErrorCode.PREVIOUS_HOLD_RELEASING,
+						"Your previous hold is being released, retry in a few seconds");
+			}
+			throw new ApiException(ErrorCode.PENDING_HOLD_EXISTS, "You already have a pending booking for this event");
+		}
+		if (bookings.countActiveTickets(userId, event.getId()) + requested > event.getMaxTicketsPerCustomer()) {
+			throw new ApiException(ErrorCode.TICKET_LIMIT_EXCEEDED,
+					"At most " + event.getMaxTicketsPerCustomer() + " tickets per customer for this event");
+		}
+	}
+
+	private Booking newPurchase(UUID userId, Event event, Instant now) {
+		return new Booking(userId, event.getId(), BookingType.PURCHASE, event.getCurrency(),
+				now.plus(props.holdDuration()), countries.get(event.getVenue().getCountryCode()).paymentProvider(),
+				now);
+	}
+
 	@Transactional(readOnly = true)
 	BookingResponse get(UUID userId, UUID id) {
 		return bookings.findById(id).filter(b -> b.getUserId().equals(userId)).map(BookingResponse::from)
@@ -140,7 +206,8 @@ class BookingService {
 
 	/**
 	 * Confirm step of spec flow 3, triggered by the fake payment until M4. Lock first, then decide: user, event
-	 * (shared), booking, then ticket types. A booking past expiresAt that the job hasn't expired yet still confirms.
+	 * (shared), booking, then ticket types (GA) or seats (reserved). A booking past expiresAt that the job hasn't
+	 * expired yet still confirms. Reserved bookings never touch the ticket-type counters.
 	 */
 	@Transactional
 	BookingResponse confirmFake(UUID userId, UUID id) {
@@ -151,28 +218,36 @@ class BookingService {
 		if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
 			throw notPending();
 		}
-		List<BookingItem> items = lockOrder(booking); // read before the bulk updates detach the booking
+		// Read before the bulk updates detach the booking.
+		boolean reserved = isReserved(booking);
+		int seatCount = booking.getEventSeatIds().size();
+		List<BookingItem> items = lockOrder(booking);
+		Instant now = clock.instant();
 
 		expectOneRow(bookings.updateStatus(id, BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED), id);
-		for (BookingItem item : items) {
-			expectOneRow(ticketTypes.confirm(item.getTicketTypeId(), item.getQuantity()), id);
+		if (reserved) {
+			tickets.saveAll(seatInventory.confirm(id, seatCount).stream()
+					.map(s -> new Ticket(id, s.getTicketTypeId(), s.getId(), TicketCodes.newCode(), now)).toList());
+		} else {
+			for (BookingItem item : items) {
+				expectOneRow(ticketTypes.confirm(item.getTicketTypeId(), item.getQuantity()), id);
+			}
+			tickets.saveAll(items.stream().flatMap(i -> IntStream.range(0, i.getQuantity())
+					.mapToObj(n -> new Ticket(id, i.getTicketTypeId(), TicketCodes.newCode(), now))).toList());
 		}
-		Instant now = clock.instant();
-		tickets.saveAll(items.stream().flatMap(i -> IntStream.range(0, i.getQuantity())
-				.mapToObj(n -> new Ticket(id, i.getTicketTypeId(), TicketCodes.newCode(), now))).toList());
 		return BookingResponse.from(bookings.findById(id).orElseThrow());
 	}
 
-	/** Owner cancels a pending booking (spec flow 5). No event lock needed: user, booking, ticket types. */
+	/** Owner cancels a pending booking (spec flow 5). No event lock needed: user, booking, ticket types / seats. */
 	@Transactional
 	BookingResponse cancel(UUID userId, UUID id) {
 		bookings.findEventIdOwnedBy(id, userId).orElseThrow(BookingService::bookingNotFound);
 		users.findForUpdateById(userId).orElseThrow();
-		List<BookingItem> items = lockOrder(bookings.findForUpdateById(id).orElseThrow());
+		bookings.findForUpdateById(id).orElseThrow();
 		if (bookings.updateStatus(id, BookingStatus.PENDING_PAYMENT, BookingStatus.CANCELLED) == 0) {
 			throw notPending();
 		}
-		release(items, id);
+		release(bookings.findById(id).orElseThrow());
 		Booking booking = bookings.findById(id).orElseThrow();
 		booking.markCancelled(clock.instant(), userId);
 		return BookingResponse.from(booking);
@@ -180,14 +255,15 @@ class BookingService {
 
 	/**
 	 * Spec flow 4. The conditional update is the whole decision: if a payment or cancel got there first it changes
-	 * no rows and this backs off, so the held counters are released exactly once.
+	 * no rows and this backs off, so the hold is released exactly once. Locks: booking (by the update), then ticket
+	 * types or seats.
 	 */
 	@Transactional
 	boolean expire(UUID id) {
 		if (bookings.updateStatus(id, BookingStatus.PENDING_PAYMENT, BookingStatus.EXPIRED) == 0) {
 			return false;
 		}
-		release(lockOrder(bookings.findById(id).orElseThrow()), id);
+		release(bookings.findById(id).orElseThrow());
 		return true;
 	}
 
@@ -197,14 +273,32 @@ class BookingService {
 		List<Ticket> issued = tickets.findByBookingIdOrderById(id);
 		Map<UUID, String> names = ticketTypes.findAllById(issued.stream().map(Ticket::getTicketTypeId)
 				.collect(Collectors.toSet())).stream().collect(Collectors.toMap(TicketType::getId, TicketType::getName));
-		return issued.stream().map(t -> new TicketResponse(t.getId(), t.getCode(), t.getTicketTypeId(),
-				names.get(t.getTicketTypeId()), t.getStatus(), t.getIssuedAt())).toList();
+		List<UUID> seatIds = issued.stream().map(Ticket::getEventSeatId).filter(Objects::nonNull).toList();
+		Map<UUID, SeatMapRow> seats = seatIds.isEmpty() ? Map.of() : eventSeats.findSeatLabels(seatIds).stream()
+				.collect(Collectors.toMap(SeatMapRow::eventSeatId, Function.identity()));
+		return issued.stream().map(t -> {
+			SeatMapRow s = t.getEventSeatId() == null ? null : seats.get(t.getEventSeatId());
+			return new TicketResponse(t.getId(), t.getCode(), t.getTicketTypeId(), names.get(t.getTicketTypeId()),
+					t.getStatus(), t.getIssuedAt(), t.getEventSeatId(), s == null ? null : s.sectionName(),
+					s == null ? null : s.rowLabel(), s == null ? null : s.seatNumber());
+		}).toList();
 	}
 
-	private void release(List<BookingItem> items, UUID bookingId) {
-		for (BookingItem item : items) {
-			expectOneRow(ticketTypes.release(item.getTicketTypeId(), item.getQuantity()), bookingId);
+	/** Gives back a no-longer-pending booking's hold: its seats (reserved) or its ticket-type counters (GA). */
+	private void release(Booking booking) {
+		UUID id = booking.getId();
+		if (isReserved(booking)) {
+			seatInventory.release(id, booking.getEventSeatIds().size());
+			return;
 		}
+		for (BookingItem item : lockOrder(booking)) { // the list is built before the first update detaches booking
+			expectOneRow(ticketTypes.release(item.getTicketTypeId(), item.getQuantity()), id);
+		}
+	}
+
+	/** Decided by the event's mode before any inventory is touched; reserved never uses the ticket-type counters. */
+	private boolean isReserved(Booking booking) {
+		return events.findSeatingModeById(booking.getEventId()).orElseThrow() == SeatingMode.RESERVED;
 	}
 
 	/** Java UUID.compareTo order of ticket type ids is the global lock order (the same sort as in hold). */
