@@ -226,6 +226,7 @@ void invalidTimeZone(String tz) { /* → 400 VALIDATION_FAILED, field timeZone *
 - Commit: see `git log` (feat: organizer venues with country and time zone). Tests: 51 pass (41 + 10 in VenueTest, counting 5 parameterized time zones).
 - Deviations: `VenueService.requireOwned` is public (Task 3 is in another package); `VenueService` is a public class, its other methods and `VenueRepository`/DTOs stay package-private. Entity needs `@Table(name = "venues")` (default name would be `venue`) and `@JdbcTypeCode(SqlTypes.CHAR)` on `countryCode` so `ddl-auto: validate` accepts the `char(2)` column. Tests were written together with the implementation, so no separate RED run.
 - Gotchas: `TestFixtures` is public with a package-private constructor and is injectable in any test via `@IntegrationTest`; `customer()`/`organizer()` save users with a unique email and a `{noop}` password hash (not loginable, use `bearer(u)`). Disabled and unknown country codes both give VALIDATION_FAILED on `countryCode`.
+
 ---
 
 ### Task 3: Events with GA ticket types (organizer side)
