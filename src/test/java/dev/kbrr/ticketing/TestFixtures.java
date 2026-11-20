@@ -24,11 +24,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 /** Test data helpers; every call creates a unique user so tests can share one database. */
 public class TestFixtures {
@@ -39,15 +44,19 @@ public class TestFixtures {
 	private final VenueService venues;
 	private final EventService events;
 	private final SectionService sections;
+	private final MockMvc mvc;
+	private final JdbcTemplate jdbc;
 
 	TestFixtures(UserRepository users, JwtEncoder encoder, Clock clock, VenueService venues, EventService events,
-			SectionService sections) {
+			SectionService sections, MockMvc mvc, JdbcTemplate jdbc) {
 		this.users = users;
 		this.encoder = encoder;
 		this.clock = clock;
 		this.venues = venues;
 		this.events = events;
 		this.sections = sections;
+		this.mvc = mvc;
+		this.jdbc = jdbc;
 	}
 
 	public User customer() {
@@ -56,6 +65,30 @@ public class TestFixtures {
 
 	public User organizer() {
 		return save(Set.of(Role.CUSTOMER, Role.ORGANIZER));
+	}
+
+	public User admin() {
+		return save(Set.of(Role.CUSTOMER, Role.ADMIN));
+	}
+
+	/** Posts a correctly signed fake-provider webhook; null arguments are sent as JSON null. */
+	public MockHttpServletResponse webhook(String eventId, String type, UUID bookingId, Long amountMinor,
+			String currency) throws Exception {
+		String body = "{\"id\":%s,\"type\":%s,\"bookingId\":%s,\"amountMinor\":%s,\"currency\":%s}".formatted(
+				quoted(eventId), quoted(type), quoted(bookingId), amountMinor, quoted(currency));
+		return mvc.perform(MockMvcRequestBuilders.post("/api/payments/webhook/fake").header("Fake-Signature",
+				"test-fake-secret").contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse();
+	}
+
+	/** A paid webhook for the booking's exact total and currency, with a fresh event id. */
+	public MockHttpServletResponse pay(UUID bookingId) throws Exception {
+		Map<String, Object> b = jdbc.queryForMap("select total_minor, currency from bookings where id = ?", bookingId);
+		return webhook("evt_" + UUID.randomUUID(), "payment.paid", bookingId, (Long) b.get("total_minor"),
+				(String) b.get("currency"));
+	}
+
+	private static String quoted(Object o) {
+		return o == null ? "null" : "\"" + o + "\"";
 	}
 
 	public String bearer(User u) {

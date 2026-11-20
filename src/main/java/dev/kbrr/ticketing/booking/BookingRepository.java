@@ -21,6 +21,17 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 			where b.id = :id and b.status = :expected""")
 	int updateStatus(UUID id, BookingStatus expected, BookingStatus next);
 
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("""
+			update Booking b set b.paymentReference = :ref, b.checkoutUrl = :url, b.version = b.version + 1
+			where b.id = :id""")
+	int setCheckout(UUID id, String ref, String url);
+
+	/** Never cleared here: only the admin refund-handled endpoint clears it, checking the version it saw. */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("update Booking b set b.refundRequired = true, b.version = b.version + 1 where b.id = :id")
+	int flagRefund(UUID id);
+
 	/** Tickets counting towards the per-customer limit: pending and confirmed purchases. */
 	@Query("""
 			select coalesce(sum(i.quantity), 0L) from BookingItem i
@@ -44,11 +55,23 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 	@Query("select b.eventId from Booking b where b.id = :id and b.userId = :userId")
 	Optional<UUID> findEventIdOwnedBy(UUID id, UUID userId);
 
+	interface OwnerAndEvent {
+		UUID getUserId();
+
+		UUID getEventId();
+	}
+
+	/** Lock-order keys without loading the entity, so the locked read that follows returns fresh state. */
+	@Query("select b.userId as userId, b.eventId as eventId from Booking b where b.id = :id")
+	Optional<OwnerAndEvent> findOwnerAndEvent(UUID id);
+
 	@Query("""
 			select b.id from Booking b
 			where b.status = dev.kbrr.ticketing.booking.BookingStatus.PENDING_PAYMENT and b.expiresAt < :now
-			order by b.expiresAt""")
-	List<UUID> findExpiredPendingIds(Instant now, Pageable limit);
+			order by b.expiresAt, b.id limit :limit offset :offset""")
+	List<UUID> findExpiredPendingIds(Instant now, int offset, int limit);
+
+	Page<Booking> findByRefundRequiredTrueOrderByCreatedAtDesc(Pageable pageable);
 
 	Page<Booking> findByUserIdAndTypeOrderByCreatedAtDesc(UUID userId, BookingType type, Pageable pageable);
 }

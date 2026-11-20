@@ -1,11 +1,12 @@
 package dev.kbrr.ticketing.booking;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,33 +22,43 @@ class ExpiryJob {
 	private final BookingRepository bookings;
 	private final BookingService service;
 	private final Clock clock;
+	private final int batchSize;
 
-	ExpiryJob(BookingRepository bookings, BookingService service, Clock clock) {
+	@Autowired
+	ExpiryJob(BookingRepository bookings, BookingService service, Clock clock, BookingProperties props) {
+		this(bookings, service, clock, props.expiryBatchSize());
+	}
+
+	ExpiryJob(BookingRepository bookings, BookingService service, Clock clock, int batchSize) {
+		if (batchSize <= 0) {
+			throw new IllegalArgumentException("ticketing.booking.expiry-batch-size must be positive");
+		}
 		this.bookings = bookings;
 		this.service = service;
 		this.clock = clock;
+		this.batchSize = batchSize;
 	}
 
-	private static final int BATCH = 100;
-
+	/**
+	 * A booking that expires, or that a payment already took, leaves the pending set; one that throws stays in front
+	 * of the rest (same order), so the next fetch skips the {@code failed} ones. {@code now} is fixed for the run, so
+	 * the set only shrinks and the loop ends.
+	 */
 	@Scheduled(fixedDelayString = "${ticketing.booking.expiry-interval}")
 	public void run() {
+		Instant now = clock.instant();
+		int failed = 0;
 		List<UUID> batch;
 		do {
-			batch = bookings.findExpiredPendingIds(clock.instant(), PageRequest.of(0, BATCH));
-			int expired = 0;
+			batch = bookings.findExpiredPendingIds(now, failed, batchSize);
 			for (UUID id : batch) {
 				try {
-					if (service.expire(id)) {
-						expired++;
-					}
+					service.expire(id);
 				} catch (RuntimeException e) {
+					failed++;
 					log.error("Could not expire booking {}", id, e);
 				}
 			}
-			if (expired == 0) {
-				return; // no progress: the same ids would come back forever
-			}
-		} while (batch.size() == BATCH);
+		} while (batch.size() == batchSize);
 	}
 }

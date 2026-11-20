@@ -1,0 +1,1 @@
+{"data":{"id":"evt_test_1","type":"event","attributes":{"type":"checkout_session.payment.paid","livemode":false,"data":{"id":"cs_123","type":"checkout_session","attributes":{"metadata":{"booking_id":"11111111-1111-1111-1111-111111111111"},"payments":[{"id":"pay_1","type":"payment","attributes":{"amount":250000,"currency":"PHP"}}]}}}}}

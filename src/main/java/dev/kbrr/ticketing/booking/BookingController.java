@@ -25,14 +25,17 @@ class BookingController {
 
 	private final BookingService bookings;
 
-	BookingController(BookingService bookings) {
+	private final BookingCheckout checkout;
+
+	BookingController(BookingService bookings, BookingCheckout checkout) {
 		this.bookings = bookings;
+		this.checkout = checkout;
 	}
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	BookingResponse hold(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody HoldRequest req) {
-		return bookings.hold(UUID.fromString(jwt.getSubject()), req);
+		return checkout.holdAndCheckout(UUID.fromString(jwt.getSubject()), req);
 	}
 
 	/** Own purchases only, newest first; the client cannot pick a sort field. */

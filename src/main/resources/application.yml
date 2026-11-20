@@ -12,6 +12,9 @@ spring:
       jdbc.batch_size: 100
       order_inserts: true
   mvc.problemdetails.enabled: true
+  http.clients:
+    connect-timeout: 5s
+    read-timeout: 10s
 ticketing:
   jwt:
     secret: ${JWT_SECRET:}
@@ -22,8 +25,20 @@ ticketing:
       currency: PHP
       payment-provider: paymongo
       min-charge-minor: 2000
+  payments:
+    fake:
+      enabled: false
+    paymongo:
+      secret-key: ${PAYMONGO_SECRET_KEY:}
+      webhook-secret: ${PAYMONGO_WEBHOOK_SECRET:}
+      base-url: https://api.paymongo.com
+      success-url: http://localhost:8080/payment/success
+      cancel-url: http://localhost:8080/payment/cancel
+      payment-method-types: [gcash, paymaya, card]
+      live: false
   booking:
     hold-duration: PT10M
     default-max-tickets-per-customer: 8
     platform-max-tickets-per-customer: 50
     expiry-interval: PT30S
+    expiry-batch-size: 100
