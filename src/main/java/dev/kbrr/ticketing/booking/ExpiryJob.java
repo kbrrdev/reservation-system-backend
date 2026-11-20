@@ -1,6 +1,7 @@
 package dev.kbrr.ticketing.booking;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,15 +28,26 @@ class ExpiryJob {
 		this.clock = clock;
 	}
 
-	// shortcut: one batch of 100 per run; a bigger backlog drains over the next runs. Loop batches if that lags.
+	private static final int BATCH = 100;
+
 	@Scheduled(fixedDelayString = "${ticketing.booking.expiry-interval}")
 	public void run() {
-		for (UUID id : bookings.findExpiredPendingIds(clock.instant(), PageRequest.of(0, 100))) {
-			try {
-				service.expire(id);
-			} catch (RuntimeException e) {
-				log.error("Could not expire booking {}", id, e);
+		List<UUID> batch;
+		do {
+			batch = bookings.findExpiredPendingIds(clock.instant(), PageRequest.of(0, BATCH));
+			int expired = 0;
+			for (UUID id : batch) {
+				try {
+					if (service.expire(id)) {
+						expired++;
+					}
+				} catch (RuntimeException e) {
+					log.error("Could not expire booking {}", id, e);
+				}
 			}
-		}
+			if (expired == 0) {
+				return; // no progress: the same ids would come back forever
+			}
+		} while (batch.size() == BATCH);
 	}
 }

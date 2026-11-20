@@ -188,6 +188,42 @@ class HoldTest {
 	}
 
 	@Test
+	void limitCheckedAfterExpiredHold() throws Exception {
+		EventResponse e = phEvent(10, 3);
+		User c = fx.customer();
+		hold(c, e, 3).andExpect(status().isCreated());
+		clock.advance(Duration.ofMinutes(10).plusSeconds(1)); // expired, the job has not run: the hold still counts
+		hold(c, e, 3).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PREVIOUS_HOLD_RELEASING"));
+	}
+
+	@Test
+	void failedMultiTypeHoldRollsBackEarlierTypes() throws Exception {
+		User org = fx.organizer();
+		VenueResponse v = fx.venue(org, "PH", "Asia/Manila");
+		LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneId.of(v.timeZone()));
+		EventResponse e;
+		UUID plenty;
+		UUID scarce;
+		// Locks are taken in UUID order; retry until the available type sorts first so a hold is taken before the failure.
+		do {
+			e = events.create(org.getId(), new CreateEventRequest(v.id(), "Rollback", null, EventCategory.CONCERT,
+					now.plusDays(30), now.plusDays(30).plusHours(3), now.minusHours(1), 8,
+					List.of(new TicketTypeRequest("Plenty", 150000L, 10), new TicketTypeRequest("Scarce", 150000L, 1))));
+			plenty = e.ticketTypes().stream().filter(t -> t.name().equals("Plenty")).findFirst().orElseThrow().id();
+			scarce = e.ticketTypes().stream().filter(t -> t.name().equals("Scarce")).findFirst().orElseThrow().id();
+		} while (plenty.compareTo(scarce) > 0);
+
+		hold(fx.customer(), e.id(), "[{\"ticketTypeId\":\"%s\",\"quantity\":2},{\"ticketTypeId\":\"%s\",\"quantity\":2}]"
+				.formatted(scarce, plenty)).andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("TICKETS_UNAVAILABLE"))
+				.andExpect(jsonPath("$.unavailable.length()").value(1))
+				.andExpect(jsonPath("$.unavailable[0]").value(scarce.toString()));
+		mvc.perform(get("/api/events/" + e.id() + "/availability"))
+				.andExpect(jsonPath("$.ticketTypes[?(@.ticketTypeId=='%s')].remaining".formatted(plenty)).value(10))
+				.andExpect(jsonPath("$.ticketTypes[?(@.ticketTypeId=='%s')].remaining".formatted(scarce)).value(1));
+	}
+
+	@Test
 	void loweringLimitBlocksFurtherBuysOnly() throws Exception {
 		User org = fx.organizer();
 		EventResponse e = fx.gaEvent(org, fx.venue(org, "PH", "Asia/Manila"), 20, 150000);

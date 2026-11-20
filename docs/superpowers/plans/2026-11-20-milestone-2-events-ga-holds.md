@@ -508,11 +508,11 @@ create table booking_items (
 1. `users.findForUpdateById(userId)`.
 2. `events.findForShareById(eventId)`. Missing or not `ON_SALE` → `404`. `now < saleStartsAt` or `now ≥ endsAt` → `EVENT_NOT_ON_SALE`.
 3. Load the requested ticket types. Any missing, or belonging to another event → `404 "Ticket type not found"`.
-4. Requested total: sum the quantities as `long` (`Math.addExact`). `countActiveTickets + requested > event.maxTicketsPerCustomer`
-   → `TICKET_LIMIT_EXCEEDED`. This check runs before any arithmetic on prices, which removes the overflow risk.
-5. `findPendingPurchase`:
+4. `findPendingPurchase` (reordered in final review: a customer whose expired hold used their whole limit must see `PREVIOUS_HOLD_RELEASING`, not `TICKET_LIMIT_EXCEEDED`):
    - `expiresAt ≤ now` → `PREVIOUS_HOLD_RELEASING`, detail `"Your previous hold is being released, retry in a few seconds"`.
    - Otherwise → `PENDING_HOLD_EXISTS`.
+5. Requested total: sum the quantities as `long` (`Math.addExact`). `countActiveTickets + requested > event.maxTicketsPerCustomer`
+   → `TICKET_LIMIT_EXCEEDED`. This check runs before any arithmetic on prices, which removes the overflow risk.
 6. For each item, sorted by `ticketTypeId`: `ticketTypes.hold(id, q)`. Collect the ids that return 0.
    If any → throw `ApiException(TICKETS_UNAVAILABLE, "Not enough tickets left", Map.of("unavailable", ids))`,
    which rolls back the holds already taken.
@@ -708,6 +708,7 @@ create index tickets_booking on tickets (booking_id);
 - Commit: see `git log` (`feat: dev sample event, README walk-through for milestone 2`). Tests: 97 pass (no new tests; seeder is dev-only). Manual check passed against the Compose Postgres on 5433: event listed, Regular 500, hold 2 gives PENDING_PAYMENT, fake-pay gives CONFIRMED, 2 ticket codes, Regular 498. A second start created no second event; the app was stopped afterwards.
 - Deviations: `VenueService.list` is now public so the seeder (in `event`) can run the "organizer owns any venue" check. `DevUserSeeder` got `@Order(1)`, `DevEventSeeder` `@Order(2)`. Event times come from the injected `Clock` in `Asia/Manila` (sale opens 1 minute ago, starts in 30 days, lasts 3 hours); the sample event therefore ages: after 30 days it is in the past until the DB is wiped.
 - Open questions: none.
+- Final-review fixes: pending-hold check now runs before the limit check; `[null]` ticket type and price above 10_000_000_000 are 400s; expiry job loops batches; multi-type rollback test; concurrency test waits have timeouts.
 
 ---
 

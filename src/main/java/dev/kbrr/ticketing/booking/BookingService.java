@@ -82,16 +82,6 @@ class BookingService {
 			throw new ApiException(ErrorCode.NOT_FOUND, "Ticket type not found");
 		}
 
-		long requested = 0;
-		for (HoldRequest.Item item : req.items()) {
-			requested = Math.addExact(requested, item.quantity());
-		}
-		// Checked before any price arithmetic: past this point quantities are at most the platform limit.
-		if (bookings.countActiveTickets(userId, event.getId()) + requested > event.getMaxTicketsPerCustomer()) {
-			throw new ApiException(ErrorCode.TICKET_LIMIT_EXCEEDED,
-					"At most " + event.getMaxTicketsPerCustomer() + " tickets per customer for this event");
-		}
-
 		Optional<Booking> pending = bookings.findPendingPurchase(userId, event.getId());
 		if (pending.isPresent()) {
 			// An expired hold is never released by noticing it here; only the expiry job releases it (rule 4).
@@ -100,6 +90,16 @@ class BookingService {
 						"Your previous hold is being released, retry in a few seconds");
 			}
 			throw new ApiException(ErrorCode.PENDING_HOLD_EXISTS, "You already have a pending booking for this event");
+		}
+
+		long requested = 0;
+		for (HoldRequest.Item item : req.items()) {
+			requested = Math.addExact(requested, item.quantity());
+		}
+		// Checked before any price arithmetic: past this point quantities are at most the platform limit.
+		if (bookings.countActiveTickets(userId, event.getId()) + requested > event.getMaxTicketsPerCustomer()) {
+			throw new ApiException(ErrorCode.TICKET_LIMIT_EXCEEDED,
+					"At most " + event.getMaxTicketsPerCustomer() + " tickets per customer for this event");
 		}
 
 		// Read everything from managed entities first: the bulk updates below clear the persistence context.

@@ -118,6 +118,22 @@ class OrganizerEventTest {
 	}
 
 	@Test
+	void nullTicketTypeElementIsRejected() throws Exception {
+		User org = fx.organizer();
+		future(org, fx.venue(org, "PH", "Asia/Manila"), null, "[null]").andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+	}
+
+	@Test
+	void absurdPriceIsRejected() throws Exception {
+		User org = fx.organizer();
+		future(org, fx.venue(org, "PH", "Asia/Manila"), null,
+				"[{\"name\":\"Regular\",\"priceMinor\":10000000001,\"capacity\":10}]")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("ticketTypes[0].priceMinor"));
+	}
+
+	@Test
 	void duplicateTicketTypeNames() throws Exception {
 		User org = fx.organizer();
 		future(org, fx.venue(org, "PH", "Asia/Manila"), null,

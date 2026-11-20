@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -52,7 +53,7 @@ class HoldConcurrencyTest {
 			List<Future<BookingResponse>> futures = new ArrayList<>();
 			for (UUID userId : userIds) {
 				futures.add(pool.submit(() -> {
-					start.await();
+					assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
 					return bookings.hold(userId, req);
 				}));
 			}
@@ -60,7 +61,7 @@ class HoldConcurrencyTest {
 			List<ErrorCode> outcomes = new ArrayList<>();
 			for (Future<BookingResponse> f : futures) {
 				try {
-					f.get();
+					f.get(30, TimeUnit.SECONDS);
 					outcomes.add(null);
 				} catch (ExecutionException e) {
 					assertThat(e.getCause()).isInstanceOf(ApiException.class);

@@ -20,5 +20,5 @@ public record CreateEventRequest(
 		@NotNull @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm[:ss]") LocalDateTime endsAt,
 		@NotNull @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm[:ss]") LocalDateTime saleStartsAt,
 		Integer maxTicketsPerCustomer,
-		@NotEmpty @Size(max = 20) List<@Valid TicketTypeRequest> ticketTypes) {
+		@NotEmpty @Size(max = 20) List<@NotNull @Valid TicketTypeRequest> ticketTypes) {
 }
