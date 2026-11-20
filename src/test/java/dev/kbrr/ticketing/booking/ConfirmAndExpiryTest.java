@@ -38,6 +38,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @IntegrationTest
 class ConfirmAndExpiryTest {
@@ -52,6 +54,7 @@ class ConfirmAndExpiryTest {
 	@Autowired TicketRepository tickets;
 	@Autowired TicketTypeRepository ticketTypes;
 	@Autowired ExpiryJob expiryJob;
+	@Autowired PlatformTransactionManager txManager;
 
 	private EventResponse event(int capacity, int maxTickets) {
 		User org = fx.organizer();
@@ -210,7 +213,52 @@ class ConfirmAndExpiryTest {
 		hold(c, e, 1).andExpect(status().isCreated());
 	}
 
-	/** Fake-pay and expiry race on the same overdue booking: exactly one wins, counters move exactly once. */
+	/**
+	 * Deterministic interleaving: the confirming transaction holds the booking row lock, so expiry waits on it,
+	 * then sees CONFIRMED and backs off. Fails if findForUpdateById stopped locking (expire would not block).
+	 */
+	@Test
+	void expireWaitsForConfirmHoldingBookingLock() throws Exception {
+		EventResponse e = event(10, 8);
+		UUID owner = fx.customer().getId();
+		UUID id = bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), 2)))).id();
+		clock.advance(PAST_EXPIRY);
+
+		TransactionTemplate tx = new TransactionTemplate(txManager);
+		CountDownLatch locked = new CountDownLatch(1);
+		CountDownLatch confirm = new CountDownLatch(1);
+		ExecutorService pool = Executors.newFixedThreadPool(2);
+		try {
+			Future<?> payer = pool.submit(() -> tx.executeWithoutResult(s -> {
+				bookingRepository.findForUpdateById(id).orElseThrow();
+				locked.countDown();
+				try {
+					assertThat(confirm.await(10, SECONDS)).isTrue();
+				} catch (InterruptedException ex) {
+					throw new IllegalStateException(ex);
+				}
+				bookings.confirmFake(owner, id); // joins this transaction, so the lock is held until commit
+			}));
+			assertThat(locked.await(10, SECONDS)).isTrue();
+
+			Future<Boolean> expired = pool.submit(() -> bookings.expire(id));
+			Thread.sleep(500);
+			assertThat(expired.isDone()).as("expire must block on the booking row lock").isFalse();
+
+			confirm.countDown();
+			payer.get(30, SECONDS);
+			assertThat(expired.get(30, SECONDS)).isFalse();
+		} finally {
+			pool.shutdownNow();
+		}
+
+		assertThat(statusOf(id)).isEqualTo(BookingStatus.CONFIRMED);
+		assertThat(type(e).getHeld()).isZero();
+		assertThat(type(e).getSold()).isEqualTo(2);
+		assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
+	}
+
+	/** Smoke test: fake-pay and expiry race on the same overdue booking; exactly one wins, counters move once. */
 	@Test
 	void payRaceWithExpiry() throws Exception {
 		int quantity = 2;
