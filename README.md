@@ -83,6 +83,8 @@ Admin (log in as `admin@example.test`): `GET /api/admin/bookings?refundRequired=
 
 1. In `.env` set `PAYMONGO_SECRET_KEY` (a `sk_test_…` key), `PAYMONGO_WEBHOOK_SECRET` and `PH_PAYMENT_PROVIDER=paymongo`, then restart the app.
 2. Expose the app with a tunnel (e.g. `ngrok http 8080`) and, in the PayMongo dashboard, register a webhook to `https://<tunnel>/api/payments/webhook/paymongo` for `checkout_session.payment.paid`. Its signing secret is `PAYMONGO_WEBHOOK_SECRET`.
-3. Hold tickets as above and open the returned `checkoutUrl`; pay with a test method. The webhook confirms the booking.
+3. Hold tickets as above and open the returned `checkoutUrl`; pay with a test method. The webhook confirms the booking. The PayMongo success/cancel redirect pages don't exist yet and 404, which is fine in test mode.
+
+> **Warning:** while a tunnel is open, the dev fake webhook is publicly reachable with the committed dev secret. With `PH_PAYMENT_PROVIDER=fake`, anyone with the URL could confirm bookings, so only open a tunnel with `PH_PAYMENT_PROVIDER=paymongo`.
 
 Run the tests (needs Docker, for Testcontainers): `./mvnw test`

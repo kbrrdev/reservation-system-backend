@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +34,7 @@ class AdminPaymentController {
 	@Transactional(readOnly = true)
 	PagedModel<UnmatchedPaymentResponse> unmatched(@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-		return new PagedModel<>(events.findUnmatched(PageRequest.of(page, size)).map(UnmatchedPaymentResponse::from));
+		return new PagedModel<>(events.findUnmatched(PageRequest.of(page, size, Sort.by("id"))).map(UnmatchedPaymentResponse::from));
 	}
 
 	/** The guarded update decides; the existence check only tells 404 from "already handled". */

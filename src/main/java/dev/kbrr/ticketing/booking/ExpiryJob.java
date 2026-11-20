@@ -30,6 +30,9 @@ class ExpiryJob {
 	}
 
 	ExpiryJob(BookingRepository bookings, BookingService service, Clock clock, int batchSize) {
+		if (batchSize <= 0) {
+			throw new IllegalArgumentException("ticketing.booking.expiry-batch-size must be positive");
+		}
 		this.bookings = bookings;
 		this.service = service;
 		this.clock = clock;

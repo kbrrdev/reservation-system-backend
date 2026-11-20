@@ -169,6 +169,25 @@ class WebhookTest {
 	}
 
 	@Test
+	void signedWebhookWithBadCurrency400WritesNothing() throws Exception {
+		long before = jdbc.queryForObject("select count(*) from payment_events", Long.class);
+		assertThat(fx.webhook(newEventId(), "payment.paid", UUID.randomUUID(), 1000L, "PESO").getStatus()).isEqualTo(400);
+		assertThat(jdbc.queryForObject("select count(*) from payment_events", Long.class)).isEqualTo(before);
+	}
+
+	@Test
+	void paidWebhookWithoutAmountFlagsRefund() throws Exception {
+		UUID id = holdGa(fx.customer(), gaEvent(), 2);
+
+		assertThat(fx.webhook(newEventId(), "payment.paid", id, null, "PHP").getStatus()).isEqualTo(200);
+
+		Booking b = booking(id);
+		assertThat(b.getStatus()).isEqualTo(BookingStatus.PENDING_PAYMENT);
+		assertThat(b.isRefundRequired()).isTrue();
+		assertThat(tickets.findByBookingIdOrderById(id)).isEmpty();
+	}
+
+	@Test
 	void unknownProvider404() throws Exception {
 		mvc.perform(post("/api/payments/webhook/stripe").contentType(APPLICATION_JSON).content("{}"))
 				.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));

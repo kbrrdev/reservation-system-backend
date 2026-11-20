@@ -626,7 +626,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
 - [x] **Step 5: Commit** — `git commit -m "feat: PayMongo test-mode adapter (checkout sessions, signed webhooks)"`
 
 **Done notes (Task 6):**
-- Commit: see git log (`feat: PayMongo test-mode adapter ...`). Full suite 181 tests green. RED step not run separately (tests and impl written together).
+- Commit: `7922167`. Full suite 181 tests green. RED step not run separately (tests and impl written together).
 - Ruling R4 done: `payment.MalformedWebhookException`, thrown by both gateways after signature check (bad JSON, missing id/type); controller maps it to 400 MALFORMED_REQUEST and logs at error, no DB write. Tests: PaymongoGatewayTest + WebhookTest.
 - Ruling R1 ends: main config PH -> paymongo now has a gateway (not run without a profile, only by the test context).
 - Deviations: (1) Added `spring-boot-starter-restclient` (Boot 4 has no RestClient.Builder bean without it). (2) No `Clock` constructor arg (no timestamp tolerance, so unused). (3) Timeouts are set globally via `spring.http.clients.connect-timeout/read-timeout` (5s/10s) instead of in code, because setting a request factory on the builder would override MockRestServiceServer.bindTo. (4) `PaymongoWebhookIT` is named `PaymongoWebhookTest` so Surefire runs it.
@@ -708,6 +708,14 @@ In `ConfirmAndExpiryTest`:
 - `expiryJobSkipsFailingBookings` restores the poisoned seat and expires the booking in `finally`, so later expiry runs on the shared DB stay quiet.
 - Manual check (dev, fake provider) all passed: hold → `checkout.fake.test` URL; webhook 200, CONFIRMED, 2 tickets; repeat 200, still 2; bad signature 401; second event id → listed under `refundRequired=true`. Real PayMongo step skipped: no `PAYMONGO_SECRET_KEY` in `.env`. The dev DB now holds that test booking.
 - Open question carried from Task 6: PayMongo field names are still unverified against the live API.
+
+**Done notes (final review fixes):**
+- Fixed: (1) `PaymongoGateway.createCheckout` rejects a response with a blank/missing id or checkout URL (booking is cancelled, 502); (2) `ExpiryJob` rejects a non-positive batch size at startup; (3) both gateways reject an over-long event id/type or a currency that is not 3 chars as 400 (`MalformedWebhookException`), not a 500 on every redelivery; (4) a paid webhook without an amount is now covered by a test (200, stays `PENDING_PAYMENT`, refund required, no tickets); (5) the unmatched-payments page has an `id` tie-break sort; (6) README warns not to open a tunnel with the fake provider and notes the missing redirect pages.
+- Tests: suite 187 -> 192 green (new: checkout response, long type, bad currency, no amount, expiry batch size).
+- Deferred to M7: make `CheckoutExpiryListener` async on a bounded executor (a slow provider currently delays the expiry job and holds a DB connection during the call); with the PayMongo field-name verification, compute the HMAC over the raw bytes instead of the decoded string.
+- Deferred to M5: refund detail (paid amount, payment events) in the admin refund response; a concurrent `@Version` clash test.
+- Deferred to M8: `cancelAfterCheckoutFailure` throwing gives a 500; untested listener-swallow and attach-failure branches.
+- Still open for the human: verify PayMongo field names against docs.paymongo.com.
 
 ---
 

@@ -74,8 +74,13 @@ public class FakePaymentGateway implements PaymentGateway {
 		}
 		Long amount = n.hasNonNull("amountMinor") && n.get("amountMinor").canConvertToLong()
 				? n.get("amountMinor").asLong() : null;
-		return new PaymentNotification("fake", text(n, "id"), type, "payment.paid".equals(type),
-				uuid(text(n, "bookingId")), amount, text(n, "currency"), new String(body, StandardCharsets.UTF_8));
+		String id = text(n, "id");
+		String currency = text(n, "currency");
+		if (id.length() > 100 || type.length() > 100 || currency != null && currency.length() != 3) {
+			throw new MalformedWebhookException("webhook id, type or currency out of range");
+		}
+		return new PaymentNotification("fake", id, type, "payment.paid".equals(type),
+				uuid(text(n, "bookingId")), amount, currency, new String(body, StandardCharsets.UTF_8));
 	}
 
 	public List<CheckoutRequest> checkouts() {

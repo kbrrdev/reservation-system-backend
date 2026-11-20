@@ -61,7 +61,12 @@ public class PaymongoGateway implements PaymentGateway {
 				"metadata", Map.of("booking_id", req.bookingId().toString()));
 		JsonNode res = client.post().uri("/v1/checkout_sessions").headers(h -> h.setBasicAuth(props.secretKey(), ""))
 				.body(Map.of("data", Map.of("attributes", attributes))).retrieve().body(JsonNode.class);
-		return new Checkout(res.at("/data/id").asString(), res.at("/data/attributes/checkout_url").asString());
+		String id = res == null ? null : text(res.at("/data/id"));
+		String url = res == null ? null : text(res.at("/data/attributes/checkout_url"));
+		if (id == null || url == null) {
+			throw new IllegalStateException("PayMongo checkout response lacks id or checkout_url");
+		}
+		return new Checkout(id, url);
 	}
 
 	@Override
@@ -87,9 +92,14 @@ public class PaymongoGateway implements PaymentGateway {
 		JsonNode session = root.at("/data/attributes/data/attributes");
 		JsonNode payment = session.at("/payments/0/attributes");
 		JsonNode amount = payment.path("amount");
+		String currency = text(payment.path("currency"));
+		// would overflow the payment_events columns: a 500 on every redelivery, so reject as 400 instead
+		if (id.length() > 100 || type.length() > 100 || currency != null && currency.length() != 3) {
+			throw new MalformedWebhookException("webhook id, type or currency out of range");
+		}
 		return new PaymentNotification("paymongo", id, type, "checkout_session.payment.paid".equals(type),
 				uuid(text(session.at("/metadata/booking_id"))), amount.canConvertToLong() ? amount.asLong() : null,
-				text(payment.path("currency")), new String(body, StandardCharsets.UTF_8));
+				currency, new String(body, StandardCharsets.UTF_8));
 	}
 
 	/** Header form {@code t=<ts>,te=<hex>,li=<hex>}; HMAC-SHA256 over {@code t.body}, test (te) or live (li) part. */

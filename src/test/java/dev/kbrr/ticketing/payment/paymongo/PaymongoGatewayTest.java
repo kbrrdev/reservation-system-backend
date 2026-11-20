@@ -93,6 +93,22 @@ class PaymongoGatewayTest {
 	}
 
 	@Test
+	void checkoutResponseWithoutIdOrUrlFails() {
+		PaymongoGateway gw = gateway("sk_test_x", SECRET, false);
+		server.expect(requestTo(BASE + "/v1/checkout_sessions"))
+				.andRespond(withSuccess("{\"data\":{}}", MediaType.APPLICATION_JSON));
+		assertThatThrownBy(() -> gw.createCheckout(new CheckoutRequest(UUID.randomUUID(), 1, "PHP", "x")))
+				.isInstanceOf(IllegalStateException.class).hasMessage("PayMongo checkout response lacks id or checkout_url");
+	}
+
+	@Test
+	void overlongEventTypeThrowsMalformedWebhook() throws Exception {
+		String body = sample().replace("checkout_session.payment.paid", "x".repeat(101));
+		assertThatThrownBy(() -> gateway("sk_test_x", SECRET, false).parseWebhook(bytes(body), signed(SECRET, body)))
+				.isInstanceOf(MalformedWebhookException.class);
+	}
+
+	@Test
 	void blankSecretKeyFailsWithoutCallingOut() {
 		PaymongoGateway gw = gateway("", SECRET, false);
 		assertThatThrownBy(() -> gw.createCheckout(new CheckoutRequest(UUID.randomUUID(), 1, "PHP", "x")))
