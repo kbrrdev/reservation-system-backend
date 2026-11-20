@@ -493,7 +493,7 @@ git commit -m "feat: login with JWT, /api/me and become-organizer"
     `customer@example.test` {CUSTOMER}.
   - `application-dev.yml`: `ticketing.dev-seed.password: devpassword123` (local dev only).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 // DevUserSeederTest (@IntegrationTest, test profile only — the dev profile is NOT active, so the seeder bean
@@ -508,26 +508,26 @@ git commit -m "feat: login with JWT, /api/me and become-organizer"
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./mvnw test -Dtest='DevUserSeederTest,OpenApiTest'` → Expected: compilation failure / missing `bearerAuth`.
 
-- [ ] **Step 3: Implement `DevSeedProperties`, `DevUserSeeder`, `application-dev.yml`, `OpenApiConfig`**
+- [x] **Step 3: Implement `DevSeedProperties`, `DevUserSeeder`, `application-dev.yml`, `OpenApiConfig`**
 
 `OpenApiConfig`: `@SecurityScheme(name = "bearerAuth", type = HTTP, scheme = "bearer", bearerFormat = "JWT")` and
 `@OpenAPIDefinition(info = @Info(title = "Ticketing API", version = "v1"), security = @SecurityRequirement(name = "bearerAuth"))`.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `./mvnw test` → Expected: `BUILD SUCCESS`.
 
-- [ ] **Step 5: Update README "Running locally"**
+- [x] **Step 5: Update README "Running locally"**
 
 Prerequisites (Java 25, Docker); `cp .env.example .env` and fill it; `docker compose up -d`;
 `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev`; Swagger UI at `http://localhost:8080/swagger-ui.html`;
 seeded dev accounts and password; `./mvnw test` (needs Docker). Mark milestone 1 ✅.
 
-- [ ] **Step 6: Manual end-to-end check**
+- [x] **Step 6: Manual end-to-end check**
 
 Run the app as in Step 5, then:
 ```bash
@@ -537,12 +537,18 @@ curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json
 Expected: JSON with `accessToken`. `GET /api/me` with it → roles `["ADMIN","CUSTOMER"]` (any order).
 Restart the app → no duplicate-user errors (seeder is idempotent).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src README.md
 git commit -m "feat: dev seed users, Swagger bearer auth, run instructions"
 ```
+
+**Done notes (Task 5):**
+- Commit: see `git log` (`feat: dev seed users, Swagger bearer auth, run instructions`). Tests: 33 total (2 new: seeder, OpenAPI), passing.
+- Deviations: none. Seeded names are "Dev Admin/Organizer/Customer".
+- Gotchas: the local Compose postgres rejected the `.env` password (volume created with an older one; tests unaffected, they use Testcontainers), so the manual check ran against a throwaway postgres on port 5544 via a `DB_URL` override. Fix locally with `docker compose down -v` if you want the Compose DB to match `.env`. Seeder test counts a +3 delta, so it assumes no other test creates those emails.
+- Open questions: none.
 
 ---
 

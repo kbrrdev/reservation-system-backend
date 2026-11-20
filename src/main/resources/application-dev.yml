@@ -1,0 +1,4 @@
+# Local development only. Never reuse this password anywhere real.
+ticketing:
+  dev-seed:
+    password: devpassword123

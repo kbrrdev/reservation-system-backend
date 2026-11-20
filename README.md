@@ -13,7 +13,7 @@ that never oversell a seat, verified payment webhooks, and Testcontainers-backed
 
 | # | Milestone | Status |
 |---|---|---|
-| 1 | Project skeleton, Postgres, Flyway, users + JWT auth | ⏳ Next |
+| 1 | Project skeleton, Postgres, Flyway, users + JWT auth | ✅ Done |
 | 2 | Countries, venues, events, general-admission holds | — |
 | 3 | Reserved seating | — |
 | 4 | Payments (PayMongo test mode) | — |
@@ -34,4 +34,25 @@ PayMongo (test mode) · Testcontainers · Docker Compose · Maven
 
 ## Running locally
 
-Instructions arrive with milestone 1 (`docker compose up -d`, then `./mvnw spring-boot:run`).
+Prerequisites: Java 25 and Docker.
+
+```bash
+cp .env.example .env            # then fill in the values (git-ignored)
+docker compose up -d            # PostgreSQL
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+Swagger UI: <http://localhost:8080/swagger-ui.html> (log in via `POST /api/auth/login`, then use **Authorize**
+with the `accessToken`).
+
+The `dev` profile seeds three accounts (created only if missing), all with the password `devpassword123`:
+
+| Email | Roles |
+|---|---|
+| `admin@example.test` | CUSTOMER, ADMIN |
+| `organizer@example.test` | CUSTOMER, ORGANIZER |
+| `customer@example.test` | CUSTOMER |
+
+The password is for local development only; the seeder never runs without the `dev` profile.
+
+Run the tests (needs Docker, for Testcontainers): `./mvnw test`
