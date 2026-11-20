@@ -635,7 +635,7 @@ create index tickets_booking on tickets (booking_id);
 - `expire`: `updateStatus(PENDING_PAYMENT → EXPIRED)`. 0 rows → return false (it was confirmed or cancelled meanwhile).
   Otherwise `release` each item (must return 1) and return true.
 
-- [ ] **Step 1: Write the failing tests** (`ConfirmAndExpiryTest`)
+- [x] **Step 1: Write the failing tests** (`ConfirmAndExpiryTest`)
 
 ```java
 @Test void fakePayConfirmsAndIssuesTickets() { /* hold 3 → fake-pay → 200 CONFIRMED; ticket type held 0, sold 3;
@@ -652,13 +652,20 @@ create index tickets_booking on tickets (booking_id);
    each booking ends CONFIRMED (sold = q, held 0) or EXPIRED (held 0, sold 0); never both, never negative */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ConfirmAndExpiryTest`.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=ConfirmAndExpiryTest`.
 
-- [ ] **Step 3: Implement** following the algorithms above.
+- [x] **Step 3: Implement** following the algorithms above.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: fake payment confirm, ticket codes, cancel and hold expiry job"`
+- [x] **Step 5: Commit** — `git commit -m "feat: fake payment confirm, ticket codes, cancel and hold expiry job"`
+
+**Done notes (Task 6):**
+- Commit: `7289475` (feat: fake payment confirm, ticket codes, cancel and hold expiry job). Tests: 96 pass (87 + 9 ConfirmAndExpiryTest); ConfirmAndExpiryTest ran green 3 extra times. RED run was a compile failure (ticket/job/service methods missing).
+- Deviations: added `BookingRepository.findEventIdOwnedBy(id, userId)` (projection) for the owner check. Loading the booking entity before `findForUpdateById` would make the locked query return the already-managed (stale, pre-lock) instance, since Hibernate does not refresh managed entities from query results. `application.yml` is unchanged: `expiry-interval` already exists and `ticketing.scheduling.enabled` defaults to true via `matchIfMissing`. Added `Booking.markCancelled(at, by)` (audit fields only). Lock SQL checked: the booking lock emits `for no key update`.
+- Gotchas: (1) The persistence context is cleared after each `updateStatus`/counter call, so items are sorted into a list before the first bulk update, and the booking is re-read for the response and for `markCancelled`. (2) `ExpiryJob.run()` expires the oldest 100 overdue bookings across the whole shared test DB, which includes leftovers from other test classes. That is harmless now, but if more than 100 leftovers ever pile up, a test's own booking could fall outside the batch. (3) `payRaceWithExpiry` uses one event per booking so the counters can be checked exactly per booking. It advances the shared clock only once (10m 1s), so a full run now moves the clock about 45 minutes.
+- Interface: `BookingService.confirmFake/cancel/expire/tickets` are package-private. `cancel` sets `cancelledBy` to the owner. `confirmFake` does not re-check event status yet (the event-cancelled branch comes with event cancel / M4). A missing user or event during the locks gives a 500 (`NoSuchElementException`), which can't happen while nothing is deleted.
+- Open questions: none.
 
 ---
 
