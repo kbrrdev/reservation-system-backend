@@ -2,6 +2,7 @@
 
 Event ticketing backend (Java 25, Spring Boot 4). Personal project to learn Spring Boot.
 Design: `docs/superpowers/specs/2026-11-19-event-ticketing-design.md`.
+Plans (one per milestone): `docs/superpowers/plans/`.
 
 ## How to work in this repo
 
@@ -13,3 +14,11 @@ Always think and act as a **senior Java / Spring Boot developer**:
 - Keep it simple: no abstractions, layers, or dependencies the task doesn't need.
 - Every non-trivial change comes with a test (Testcontainers for anything touching the database).
 - This is a learning project: when making a design choice, briefly explain the why and the trade-off.
+
+## Working through a plan
+
+- Before a task: read the plan's **Done notes** from earlier tasks.
+- After a task: tick its steps (`- [x]`) and add a short **Done notes** block under it — commit, test count,
+  deviations from the plan, gotchas for later tasks, interface changes, open questions for the human.
+  No code, no restating the plan.
+- Commands use Git Bash (`./mvnw`); integration tests need Docker running.

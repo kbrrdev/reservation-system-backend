@@ -1,0 +1,15 @@
+spring:
+  application.name: ticketing
+  config.import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ticketing}
+    username: ${DB_USERNAME:ticketing}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+  mvc.problemdetails.enabled: true
+ticketing:
+  jwt:
+    secret: ${JWT_SECRET:}
+    ttl: PT1H
