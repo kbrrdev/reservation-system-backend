@@ -19,3 +19,8 @@ ticketing:
       currency: PHP
       payment-provider: paymongo
       min-charge-minor: 2000
+  booking:
+    hold-duration: PT10M
+    default-max-tickets-per-customer: 8
+    platform-max-tickets-per-customer: 50
+    expiry-interval: PT30S

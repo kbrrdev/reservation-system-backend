@@ -315,7 +315,7 @@ create table ticket_types (
 );
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 // VenueTimeTest (unit)
@@ -339,9 +339,9 @@ create table ticket_types (
 @Test void updateChangesLimitAndText() { /* PUT {title:"New", category, description, maxTicketsPerCustomer: 2} → 200; GET shows them */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='VenueTimeTest,OrganizerEventTest'`.
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest='VenueTimeTest,OrganizerEventTest'`.
 
-- [ ] **Step 3: Implement** migration, entities, `VenueTime`, service and controller.
+- [x] **Step 3: Implement** migration, entities, `VenueTime`, service and controller.
   `create` validates in this order and stops at the first failure, using `fieldError`:
   1. Venue owned (`404`).
   2. The venue's country is enabled (`venueId`, "country is not enabled").
@@ -353,10 +353,16 @@ create table ticket_types (
 
   `currency` = the venue country's currency. Status `ON_SALE`. `update` applies the same limit validation.
 
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
 
-- [ ] **Step 5: Commit** — `git commit -m "feat: organizer GA events with venue-local schedule and minor-unit prices"`
+- [x] **Step 5: Commit** — `git commit -m "feat: organizer GA events with venue-local schedule and minor-unit prices"`
 
+
+**Done notes (Task 3):**
+- Commit: see `git log` (feat: organizer GA events with venue-local schedule and minor-unit prices). Tests: 66 pass (51 + 3 VenueTimeTest + 12 OrganizerEventTest, counting parameterized cases). RED run was a compile failure with the event code moved aside.
+- Deviations: `VenueRequest`/`VenueResponse` and `VenueService.create`, `EventService.create` are now public so `TestFixtures.venue/gaEvent` can call the services directly. The `@JsonFormat(pattern=...)` on `LocalDateTime` already rejects offsets and `Z` with Jackson 3 (400), no extra fix needed. The pattern annotation is the `com.fasterxml.jackson.annotation` one (annotations did not move to `tools.jackson`).
+- Gotchas: US is disabled in the test config, so the DST-gap test uses a PH venue with zone `America/New_York` (venue zone is only checked as an IANA id). Tests that need an event in the future use year 2099 or 2027 dates; the 2027-03-14 date is the real US DST gap. `Event.currency` needs `@JdbcTypeCode(SqlTypes.CHAR)` like Task 2. `EventResponse.from` must run inside a transaction (lazy venue/ticket types). `TicketType.held`/`sold` have getters but no mutators yet; `TicketTypeRepository` is created for Task 4+. The `TestFixtures` constructor now also takes `VenueService` and `EventService`.
+- Interface: `EventService.update` only allows title/description/category/limit; schedule and ticket types are immutable in M2.
 ---
 
 ### Task 4: Public event browsing and availability

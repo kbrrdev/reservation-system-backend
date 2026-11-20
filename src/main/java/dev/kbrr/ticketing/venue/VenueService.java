@@ -19,7 +19,7 @@ public class VenueService {
 		this.countries = countries;
 	}
 
-	VenueResponse create(UUID ownerId, VenueRequest req) {
+	public VenueResponse create(UUID ownerId, VenueRequest req) {
 		if (countries.enabled(req.countryCode()).isEmpty()) {
 			throw ApiException.fieldError("countryCode", "country is not enabled");
 		}
