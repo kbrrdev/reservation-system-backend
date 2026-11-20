@@ -61,7 +61,10 @@ class AuthService {
 		try {
 			return users.saveAndFlush(user);
 		} catch (DataIntegrityViolationException e) {
-			throw emailTaken(); // concurrent registration lost the race on the unique index
+			if (users.existsByEmail(email)) {
+				throw emailTaken(); // concurrent registration lost the race on the unique index
+			}
+			throw e;
 		}
 	}
 

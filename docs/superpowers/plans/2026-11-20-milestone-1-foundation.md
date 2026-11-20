@@ -549,6 +549,7 @@ git commit -m "feat: dev seed users, Swagger bearer auth, run instructions"
 - Deviations: none. Seeded names are "Dev Admin/Organizer/Customer".
 - Gotchas: the local Compose postgres rejected the `.env` password (volume created with an older one; tests unaffected, they use Testcontainers), so the manual check ran against a throwaway postgres on port 5544 via a `DB_URL` override. Fix locally with `docker compose down -v` if you want the Compose DB to match `.env`. Seeder test counts a +3 delta, so it assumes no other test creates those emails.
 - Open questions: none.
+- Final-review fixes: README status/env hints, security exceptions re-thrown from catch-all, method-parameter validation -> VALIDATION_FAILED, register rethrows non-email integrity errors, JwtProperties ttl validation, Postgres bound to 127.0.0.1.
 
 ---
 

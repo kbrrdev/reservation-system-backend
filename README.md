@@ -37,10 +37,12 @@ PayMongo (test mode) · Testcontainers · Docker Compose · Maven
 Prerequisites: Java 25 and Docker.
 
 ```bash
-cp .env.example .env            # then fill in the values (git-ignored)
+cp .env.example .env            # then fill in DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET (git-ignored)
 docker compose up -d            # PostgreSQL
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
+
+If Postgres rejects the password because the Compose volume was created with an older `.env`, run `docker compose down -v` (wipes the local DB).
 
 Swagger UI: <http://localhost:8080/swagger-ui.html> (log in via `POST /api/auth/login`, then use **Authorize**
 with the `accessToken`).

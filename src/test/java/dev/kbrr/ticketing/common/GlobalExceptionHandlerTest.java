@@ -10,7 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.validation.Valid;
+import jakarta.servlet.ServletException;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.annotation.RequestParam;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -70,6 +76,19 @@ class GlobalExceptionHandlerTest {
 				.andExpect(jsonPath("$.code").value("STALE_UPDATE"));
 	}
 
+	@Test
+	void securityExceptionsPropagateToSecurityFilterChain() {
+		ServletException ex = assertThrows(ServletException.class, () -> mvc.perform(get("/probe/denied")));
+		assertInstanceOf(AccessDeniedException.class, ex.getCause());
+	}
+
+	@Test
+	void methodParameterValidation() throws Exception {
+		mvc.perform(get("/probe/paged").param("page", "0")).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+				.andExpect(jsonPath("$.errors[0].field").value("page"));
+	}
+
 	record Body(@NotBlank String name) {
 	}
 
@@ -88,6 +107,16 @@ class GlobalExceptionHandlerTest {
 		@GetMapping("/probe/boom")
 		String boom() {
 			throw new IllegalStateException("secret internals");
+		}
+
+		@GetMapping("/probe/denied")
+		String denied() {
+			throw new AccessDeniedException("no");
+		}
+
+		@GetMapping("/probe/paged")
+		String paged(@RequestParam @Min(1) int page) {
+			return "ok";
 		}
 
 		@GetMapping("/probe/stale")
