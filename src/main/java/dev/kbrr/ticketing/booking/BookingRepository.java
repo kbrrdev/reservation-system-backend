@@ -71,5 +71,7 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 			order by b.expiresAt""")
 	List<UUID> findExpiredPendingIds(Instant now, Pageable limit);
 
+	Page<Booking> findByRefundRequiredTrueOrderByCreatedAtDesc(Pageable pageable);
+
 	Page<Booking> findByUserIdAndTypeOrderByCreatedAtDesc(UUID userId, BookingType type, Pageable pageable);
 }

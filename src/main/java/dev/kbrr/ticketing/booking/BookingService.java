@@ -204,6 +204,29 @@ class BookingService {
 				.orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Booking not found"));
 	}
 
+	@Transactional(readOnly = true)
+	Page<AdminRefundResponse> listRefundRequired(int page, int size) {
+		return bookings.findByRefundRequiredTrueOrderByCreatedAtDesc(PageRequest.of(page, size, Sort.by("id")))
+				.map(AdminRefundResponse::from);
+	}
+
+	/**
+	 * Spec rule 9: the admin clears the flag only against the version they saw. The explicit compare catches a change
+	 * before the load; flushing here lets @Version catch one between load and flush inside this call (409 either way).
+	 */
+	@Transactional
+	AdminRefundResponse refundHandled(UUID id, long version) {
+		Booking b = bookings.findById(id).orElseThrow(BookingService::bookingNotFound);
+		if (b.getVersion() != version) {
+			throw new ApiException(ErrorCode.STALE_UPDATE, "Changed by someone else, reload and retry");
+		}
+		if (!b.isRefundRequired()) {
+			throw new ApiException(ErrorCode.REFUND_ALREADY_HANDLED, "Refund already handled");
+		}
+		b.markRefundHandled();
+		return AdminRefundResponse.from(bookings.saveAndFlush(b));
+	}
+
 	/** Newest first; id breaks createdAt ties so paging is stable. */
 	@Transactional(readOnly = true)
 	Page<BookingResponse> list(UUID userId, int page, int size) {
