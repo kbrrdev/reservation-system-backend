@@ -287,7 +287,7 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
   - `payment.CheckoutExpiryListener`: `@TransactionalEventListener(phase = AFTER_COMMIT)` → `gateways.get(provider).expireCheckout(sessionId)`.
     It catches `RuntimeException` and logs at warn: never rethrow.
 
-- [ ] **Step 1: Write the failing tests** (`CheckoutTest`, `@IntegrationTest`, PH venue → provider `fake`)
+- [x] **Step 1: Write the failing tests** (`CheckoutTest`, `@IntegrationTest`, PH venue → provider `fake`)
 
 ```java
 @Test void holdReturnsCheckoutUrlAndSavesReference() { /* hold → 201, $.checkoutUrl "https://checkout.fake.test/fake_cs_<id>";
@@ -302,10 +302,17 @@ Use a tiny inline `PaymentGateway` stub in the test (`provider()` only; other me
    status.setRollbackOnly() → booking still PENDING_PAYMENT and fake.expiredSessions() lacks its reference */ }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=CheckoutTest`.
-- [ ] **Step 3: Implement.** Existing `HoldTest` / `ReservedHoldTest` must still pass. Their responses now carry a `checkoutUrl`.
-- [ ] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 5: Commit** — `git commit -m "feat: create checkout after the hold commits, expire it after expiry or cancel"`
+- [x] **Step 2: Run to verify they fail** — `./mvnw test -Dtest=CheckoutTest`.
+- [x] **Step 3: Implement.** Existing `HoldTest` / `ReservedHoldTest` must still pass. Their responses now carry a `checkoutUrl`.
+- [x] **Step 4: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 5: Commit** — `git commit -m "feat: create checkout after the hold commits, expire it after expiry or cancel"`
+
+**Done notes (Task 2):** commit 4da62cf; suite 142 tests green (4 new `CheckoutTest`).
+- Interface: `BookingService.checkoutData(id)` returns `CheckoutData(provider, CheckoutRequest)` instead of a bare `CheckoutRequest`, so `BookingCheckout` also gets the provider without a second read. `BookingService` now takes `ApplicationEventPublisher`.
+- `HoldTest.holdsGaTickets` asserted `checkoutUrl` absent; it now expects the fake URL prefix.
+- Known gap: `attachCheckout` after an expiry/cancel that already committed leaves a live session at the provider (no event fired, reference was still null). A later payment on it reaches the webhook for a non-pending booking (Task 3 refund path).
+- `CheckoutExpiryListener` is package-private; `cancelAfterCheckoutFailure` locks user then booking like `cancel`.
+- RED step not run separately: tests and implementation written together.
 
 ---
 
