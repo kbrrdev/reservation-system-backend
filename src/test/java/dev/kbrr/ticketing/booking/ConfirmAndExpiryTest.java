@@ -13,11 +13,10 @@ import com.jayway.jsonpath.JsonPath;
 import dev.kbrr.ticketing.IntegrationTest;
 import dev.kbrr.ticketing.MutableClock;
 import dev.kbrr.ticketing.TestFixtures;
-import dev.kbrr.ticketing.common.ApiException;
-import dev.kbrr.ticketing.common.ErrorCode;
 import dev.kbrr.ticketing.event.EventResponse;
 import dev.kbrr.ticketing.event.TicketType;
 import dev.kbrr.ticketing.event.TicketTypeRepository;
+import dev.kbrr.ticketing.payment.PaymentNotification;
 import dev.kbrr.ticketing.user.User;
 import dev.kbrr.ticketing.venue.VenueResponse;
 import java.time.Duration;
@@ -50,6 +49,7 @@ class ConfirmAndExpiryTest {
 	@Autowired TestFixtures fx;
 	@Autowired MutableClock clock;
 	@Autowired BookingService bookings;
+	@Autowired PaymentConfirmationService payments;
 	@Autowired BookingRepository bookingRepository;
 	@Autowired TicketRepository tickets;
 	@Autowired TicketTypeRepository ticketTypes;
@@ -79,8 +79,11 @@ class ConfirmAndExpiryTest {
 				.getResponse().getContentAsString(), "$.id"));
 	}
 
-	private ResultActions fakePay(User u, UUID id) throws Exception {
-		return mvc.perform(post("/api/bookings/" + id + "/fake-pay").header("Authorization", fx.bearer(u)));
+	/** A paid notification for the booking's exact total, as the webhook controller would pass it on. */
+	private PaymentNotification paid(UUID id) {
+		Booking b = bookingRepository.findById(id).orElseThrow();
+		return new PaymentNotification("fake", "evt_" + UUID.randomUUID(), "payment.paid", true, id, b.getTotalMinor(),
+				b.getCurrency(), "{}");
 	}
 
 	private ResultActions cancel(User u, UUID id) throws Exception {
@@ -96,13 +99,14 @@ class ConfirmAndExpiryTest {
 	}
 
 	@Test
-	void fakePayConfirmsAndIssuesTickets() throws Exception {
+	void payConfirmsAndIssuesTickets() throws Exception {
 		EventResponse e = event(10, 8);
 		User c = fx.customer();
 		UUID id = holdId(c, e, 3);
 
-		fakePay(c, id).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"))
-				.andExpect(jsonPath("$.items[0].quantity").value(3));
+		assertThat(fx.pay(id).getStatus()).isEqualTo(200);
+		mvc.perform(get("/api/bookings/" + id).header("Authorization", fx.bearer(c)))
+				.andExpect(jsonPath("$.status").value("CONFIRMED")).andExpect(jsonPath("$.items[0].quantity").value(3));
 		assertThat(type(e).getHeld()).isZero();
 		assertThat(type(e).getSold()).isEqualTo(3);
 
@@ -154,7 +158,9 @@ class ConfirmAndExpiryTest {
 		clock.advance(PAST_EXPIRY);
 		assertThat(bookings.expire(id)).isTrue();
 
-		fakePay(c, id).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOKING_NOT_PENDING"));
+		// A late payment is accepted (the provider must stop retrying) and flagged for refund; nothing is sold.
+		assertThat(fx.pay(id).getStatus()).isEqualTo(200);
+		assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isTrue();
 		cancel(c, id).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BOOKING_NOT_PENDING"));
 		assertThat(type(e).getHeld()).isZero();
 		assertThat(statusOf(id)).isEqualTo(BookingStatus.EXPIRED);
@@ -181,7 +187,7 @@ class ConfirmAndExpiryTest {
 		EventResponse e = event(10, 8);
 		User c = fx.customer();
 		UUID id = holdId(c, e, 2);
-		fakePay(c, id).andExpect(status().isOk());
+		assertThat(fx.pay(id).getStatus()).isEqualTo(200);
 
 		assertThat(bookings.expire(id)).isFalse();
 		assertThat(statusOf(id)).isEqualTo(BookingStatus.CONFIRMED);
@@ -190,12 +196,11 @@ class ConfirmAndExpiryTest {
 	}
 
 	@Test
-	void othersCannotPayOrCancel() throws Exception {
+	void othersCannotCancelOrSeeTickets() throws Exception {
 		EventResponse e = event(10, 8);
 		UUID id = holdId(fx.customer(), e, 2);
 		User other = fx.customer();
 
-		fakePay(other, id).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
 		cancel(other, id).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
 		mvc.perform(get("/api/bookings/" + id + "/tickets").header("Authorization", fx.bearer(other)))
 				.andExpect(status().isNotFound());
@@ -207,7 +212,7 @@ class ConfirmAndExpiryTest {
 	void limitCountsConfirmedTickets() throws Exception {
 		EventResponse e = event(10, 3);
 		User c = fx.customer();
-		fakePay(c, holdId(c, e, 2)).andExpect(status().isOk());
+		assertThat(fx.pay(holdId(c, e, 2)).getStatus()).isEqualTo(200);
 
 		hold(c, e, 2).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TICKET_LIMIT_EXCEEDED"));
 		hold(c, e, 1).andExpect(status().isCreated());
@@ -224,6 +229,7 @@ class ConfirmAndExpiryTest {
 		UUID id = bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), 2)), null)).id();
 		clock.advance(PAST_EXPIRY);
 
+		PaymentNotification payment = paid(id);
 		TransactionTemplate tx = new TransactionTemplate(txManager);
 		CountDownLatch locked = new CountDownLatch(1);
 		CountDownLatch confirm = new CountDownLatch(1);
@@ -237,7 +243,7 @@ class ConfirmAndExpiryTest {
 				} catch (InterruptedException ex) {
 					throw new IllegalStateException(ex);
 				}
-				bookings.confirmFake(owner, id); // joins this transaction, so the lock is held until commit
+				payments.handle(payment); // joins this transaction, so the lock is held until commit
 			}));
 			assertThat(locked.await(10, SECONDS)).isTrue();
 
@@ -258,18 +264,16 @@ class ConfirmAndExpiryTest {
 		assertThat(tickets.findByBookingIdOrderById(id)).hasSize(2);
 	}
 
-	/** Smoke test: fake-pay and expiry race on the same overdue booking; exactly one wins, counters move once. */
+	/** Smoke test: payment and expiry race on the same overdue booking; exactly one wins, counters move once. */
 	@Test
 	void payRaceWithExpiry() throws Exception {
 		int quantity = 2;
 		List<EventResponse> events = new ArrayList<>();
-		List<UUID> owners = new ArrayList<>();
 		List<UUID> ids = new ArrayList<>();
 		for (int i = 0; i < 20; i++) {
 			EventResponse e = event(10, 8);
 			UUID owner = fx.customer().getId();
 			events.add(e);
-			owners.add(owner);
 			ids.add(bookings.hold(owner, new HoldRequest(e.id(), List.of(new HoldRequest.Item(typeOf(e), quantity)), null))
 					.id());
 		}
@@ -279,17 +283,12 @@ class ConfirmAndExpiryTest {
 		try {
 			for (int i = 0; i < 20; i++) {
 				UUID id = ids.get(i);
-				UUID owner = owners.get(i);
+				PaymentNotification payment = paid(id);
 				CountDownLatch start = new CountDownLatch(1);
-				Future<Boolean> paid = pool.submit(() -> {
-					start.await(10, SECONDS);
-					try {
-						bookings.confirmFake(owner, id);
-						return true;
-					} catch (ApiException ex) {
-						assertThat(ex.code()).isEqualTo(ErrorCode.BOOKING_NOT_PENDING);
-						return false;
-					}
+				Future<?> paid = pool.submit(() -> {
+					assertThat(start.await(10, SECONDS)).isTrue();
+					payments.handle(payment); // a payment that loses the race is flagged for refund, not thrown
+					return null;
 				});
 				Future<Boolean> expired = pool.submit(() -> {
 					start.await(10, SECONDS);
@@ -299,8 +298,9 @@ class ConfirmAndExpiryTest {
 				boolean payWon;
 				boolean expireWon;
 				try {
-					payWon = paid.get(30, SECONDS);
+					paid.get(30, SECONDS);
 					expireWon = expired.get(30, SECONDS);
+					payWon = statusOf(id) == BookingStatus.CONFIRMED;
 				} catch (ExecutionException ex) {
 					throw new AssertionError("race " + i + " failed", ex.getCause());
 				}
@@ -314,6 +314,7 @@ class ConfirmAndExpiryTest {
 					assertThat(tickets.findByBookingIdOrderById(id)).hasSize(quantity);
 				} else {
 					assertThat(statusOf(id)).isEqualTo(BookingStatus.EXPIRED);
+					assertThat(bookingRepository.findById(id).orElseThrow().isRefundRequired()).isTrue();
 					assertThat(t.getSold()).isZero();
 					assertThat(tickets.findByBookingIdOrderById(id)).isEmpty();
 				}

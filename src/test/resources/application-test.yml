@@ -8,6 +8,4 @@ ticketing:
   payments:
     fake: {enabled: true, webhook-secret: test-fake-secret}
     paymongo.webhook-secret: whsk_test_secret
-  # kept until Task 3 removes FakePaymentController
-  fake-payments.enabled: true
   scheduling.enabled: false

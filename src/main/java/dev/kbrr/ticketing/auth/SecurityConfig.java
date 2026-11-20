@@ -23,6 +23,8 @@ class SecurityConfig {
 				.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(a -> a
 						.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
+						// Authenticated by the provider's signature, not a JWT.
+						.requestMatchers(HttpMethod.POST, "/api/payments/webhook/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/countries", "/api/events", "/api/events/*",
 								"/api/events/*/availability").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

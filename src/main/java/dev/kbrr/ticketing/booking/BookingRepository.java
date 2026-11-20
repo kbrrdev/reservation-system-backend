@@ -27,6 +27,11 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 			where b.id = :id""")
 	int setCheckout(UUID id, String ref, String url);
 
+	/** Never cleared here: only the admin refund-handled endpoint clears it, checking the version it saw. */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("update Booking b set b.refundRequired = true, b.version = b.version + 1 where b.id = :id")
+	int flagRefund(UUID id);
+
 	/** Tickets counting towards the per-customer limit: pending and confirmed purchases. */
 	@Query("""
 			select coalesce(sum(i.quantity), 0L) from BookingItem i
@@ -49,6 +54,16 @@ interface BookingRepository extends JpaRepository<Booking, UUID> {
 	/** Ownership check that doesn't load the entity, so the locked read that follows returns fresh state. */
 	@Query("select b.eventId from Booking b where b.id = :id and b.userId = :userId")
 	Optional<UUID> findEventIdOwnedBy(UUID id, UUID userId);
+
+	interface OwnerAndEvent {
+		UUID getUserId();
+
+		UUID getEventId();
+	}
+
+	/** Lock-order keys without loading the entity, so the locked read that follows returns fresh state. */
+	@Query("select b.userId as userId, b.eventId as eventId from Booking b where b.id = :id")
+	Optional<OwnerAndEvent> findOwnerAndEvent(UUID id);
 
 	@Query("""
 			select b.id from Booking b
