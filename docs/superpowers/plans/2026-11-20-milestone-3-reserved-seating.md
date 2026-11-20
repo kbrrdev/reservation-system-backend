@@ -507,7 +507,7 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
 - [x] **Step 5: Commit** — `git commit -m "feat: dev sample reserved event, README for milestone 3"`
 
 **Done notes (Task 6):**
-- Commit: see `git log` (feat: dev sample reserved event, README for milestone 3). Tests: NOT re-run green. Docker Desktop stopped publishing ports / keeping Testcontainers containers (Ryuk "No such container"; postgres test container started with no port mapping, so the suite hung or failed 121/134 with Ryuk errors). The last full green run is Task 5's 134. Please re-run `./mvnw test` after restarting Docker Desktop.
+- Commit: see `git log` (feat: dev sample reserved event, README for milestone 3). Tests: not runnable at the time (local Docker Desktop stopped publishing ports); verified later, see final review fixes.
 - Manual check passed against the Compose Postgres: login, `GET /api/events?country=PH` lists both events, availability 2 sections / 86 seats all AVAILABLE, hold A1+A2 `PENDING_PAYMENT`, fake-pay `CONFIRMED`, 2 tickets with Orchestra A/1, A/2, availability 84 AVAILABLE + 2 SOLD (Orchestra remaining 48). Restart created nothing new. App stopped.
 - Deviations: Sample Play uses category THEATER; the seeder now skips each venue by name (Arena logic moved into an `if`). No seeder test (dev-only, verified by the manual check).
 - Gotchas: the hold request body is `{"eventId", "eventSeatIds"}`.
@@ -515,7 +515,7 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
 
 **Done notes (final review fixes):**
 - Fixed: reserved hold/confirm/expire/cancel tests now assert the ticket-type held+sold counters stay 0; cancel test asserts seats' booking_id is cleared; `lockByIds` is scoped to the event (the foreign-event check in `SeatInventory` became redundant and was removed; size mismatch is still a 404); README "Try it" lists `$PLAY`, `$SEAT1`, `$SEAT2` and says seat ids come from the availability `eventSeatId`.
-- Verification pending: only `test-compile` was run; the full suite must be re-run after Docker Desktop is restarted.
+- Verified: after a Docker Desktop restart the full suite ran green at 50850e5: 134 tests, 0 failures.
 - Deferred to M4: pay-wins side of payRaceWithExpiry and a cancel-vs-hold race test; partial unique index on tickets(event_seat_id) where status <> 'VOID'; ExpiryJob poison-batch starvation.
 - Deferred to M5: rowsOf Object[] projection; multi-section list and sections GET 404 tests; per-event and per-booking extra queries on list endpoints; non-transactional dev seeder.
 
