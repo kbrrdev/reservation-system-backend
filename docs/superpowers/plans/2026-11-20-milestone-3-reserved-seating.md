@@ -491,9 +491,9 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
   - Event "Sample Play": RESERVED. "Orchestra" ticket type → Orchestra section at `250000`; "Balcony" ticket type → Balcony section at `120000`.
     The sale opened a minute ago and the event starts in 30 days.
 
-- [ ] **Step 1: Implement the seeder change.**
-- [ ] **Step 2: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
-- [ ] **Step 3: Manual check** (`docker compose up -d`, then run the app with the `dev` profile, then stop it afterwards):
+- [x] **Step 1: Implement the seeder change.**
+- [x] **Step 2: Run all tests** — `./mvnw test` → `BUILD SUCCESS`.
+- [x] **Step 3: Manual check** (`docker compose up -d`, then run the app with the `dev` profile, then stop it afterwards):
   1. Log in as customer.
   2. `GET /api/events?country=PH` lists "Sample Play".
   3. Its availability shows 2 sections and 86 seats, all `AVAILABLE`.
@@ -503,8 +503,15 @@ The GA branch is unchanged. The GA path's ticket-type counter code must not run 
   7. Availability shows those seats `SOLD`.
 
   A restart creates nothing new.
-- [ ] **Step 4: Update the README.** Milestone 3 ✅, status line "milestone 4 next", and a "Reserved seating" line in "Try it".
-- [ ] **Step 5: Commit** — `git commit -m "feat: dev sample reserved event, README for milestone 3"`
+- [x] **Step 4: Update the README.** Milestone 3 ✅, status line "milestone 4 next", and a "Reserved seating" line in "Try it".
+- [x] **Step 5: Commit** — `git commit -m "feat: dev sample reserved event, README for milestone 3"`
+
+**Done notes (Task 6):**
+- Commit: see `git log` (feat: dev sample reserved event, README for milestone 3). Tests: NOT re-run green. Docker Desktop stopped publishing ports / keeping Testcontainers containers (Ryuk "No such container"; postgres test container started with no port mapping, so the suite hung or failed 121/134 with Ryuk errors). The last full green run is Task 5's 134. Please re-run `./mvnw test` after restarting Docker Desktop.
+- Manual check passed against the Compose Postgres: login, `GET /api/events?country=PH` lists both events, availability 2 sections / 86 seats all AVAILABLE, hold A1+A2 `PENDING_PAYMENT`, fake-pay `CONFIRMED`, 2 tickets with Orchestra A/1, A/2, availability 84 AVAILABLE + 2 SOLD (Orchestra remaining 48). Restart created nothing new. App stopped.
+- Deviations: Sample Play uses category THEATER; the seeder now skips each venue by name (Arena logic moved into an `if`). No seeder test (dev-only, verified by the manual check).
+- Gotchas: the hold request body is `{"eventId", "eventSeatIds"}`.
+- Open questions: none.
 
 ---
 
